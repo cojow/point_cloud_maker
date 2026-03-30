@@ -1,0 +1,21 @@
+{
+    "make": "DJI",
+    "model": "M3M",
+    "width": 5280,
+    "height": 3956,
+    "projection_type": "perspective",
+    "focal_ratio": 0.6666666666666666,
+    "orientation": 1,
+    "capture_time": 1774513593.0,
+    "gps": {
+        "latitude": 40.25328616666667,
+        "longitude": -111.63941202777778,
+        "altitude": 1458.424
+    },
+    "opk": {
+        "omega": -0.33188049005838416,
+        "phi": 27.237243409371445,
+        "kappa": 90.93580529288856
+    },
+    "camera": "v2 dji m3m 5280 3956 perspective 0.6666"
+}

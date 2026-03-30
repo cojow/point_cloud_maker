@@ -1,0 +1,2203 @@
+{
+    "num_candidate_image_pairs": 2006,
+    "reconstructions": [
+        {
+            "bootstrap": {
+                "image_pair": [
+                    "DJI_20260326082626_0064_D.JPG",
+                    "DJI_20260326082628_0065_D.JPG"
+                ],
+                "common_tracks": 1888,
+                "two_view_reconstruction": {
+                    "5_point_inliers": 1887,
+                    "plane_based_inliers": 1872,
+                    "method": "5_point"
+                },
+                "triangulated_points": 1713,
+                "decision": "Success",
+                "memory_usage": 268877824
+            },
+            "grow": {
+                "steps": [
+                    {
+                        "images": [
+                            "DJI_20260326082629_0066_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1138,
+                            "num_inliers": 1118,
+                            "shots": [
+                                "DJI_20260326082629_0066_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 272580608,
+                        "triangulated_points": 820,
+                        "bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 101, Initial cost: 1.497898e+02, Final cost: 8.377695e+01, Termination: NO_CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.002663,
+                                "run": 0.685973,
+                                "teardown": 0.003985
+                            },
+                            "num_images": 3,
+                            "num_points": 2544,
+                            "num_reprojections": 6335
+                        },
+                        "retriangulation": {
+                            "num_points_before": 2544,
+                            "num_points_after": 2497,
+                            "wall_time": 0.15163174999179319
+                        },
+                        "bundle_after_retriangulation": {
+                            "brief_report": "Ceres Solver Report: Iterations: 101, Initial cost: 8.594101e+01, Final cost: 6.892943e+01, Termination: NO_CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.002414,
+                                "run": 0.653655,
+                                "teardown": 0.003961
+                            },
+                            "num_images": 3,
+                            "num_points": 2497,
+                            "num_reprojections": 6260
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082630_0067_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1351,
+                            "num_inliers": 1330,
+                            "shots": [
+                                "DJI_20260326082630_0067_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 281149440,
+                        "triangulated_points": 541,
+                        "bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 101, Initial cost: 1.538911e+02, Final cost: 1.242494e+02, Termination: NO_CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.003456,
+                                "run": 0.919256,
+                                "teardown": 0.005014
+                            },
+                            "num_images": 4,
+                            "num_points": 3038,
+                            "num_reprojections": 8746
+                        },
+                        "retriangulation": {
+                            "num_points_before": 3038,
+                            "num_points_after": 3030,
+                            "wall_time": 0.19182241699309088
+                        },
+                        "bundle_after_retriangulation": {
+                            "brief_report": "Ceres Solver Report: Iterations: 101, Initial cost: 1.286547e+02, Final cost: 1.043577e+02, Termination: NO_CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.003436,
+                                "run": 0.914673,
+                                "teardown": 0.006016
+                            },
+                            "num_images": 4,
+                            "num_points": 3030,
+                            "num_reprojections": 8747
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082631_0068_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1409,
+                            "num_inliers": 1387,
+                            "shots": [
+                                "DJI_20260326082631_0068_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 288538624,
+                        "triangulated_points": 582,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 11, Initial cost: 1.592087e+02, Final cost: 1.367548e+02, Termination: NO_CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.008292,
+                                "run": 0.135019,
+                                "teardown": 0.006458
+                            },
+                            "num_images": 5,
+                            "num_interior_images": 5,
+                            "num_boundary_images": 0,
+                            "num_other_images": 0,
+                            "num_points": 3612,
+                            "num_reprojections": 11408
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082632_0069_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1487,
+                            "num_inliers": 1457,
+                            "shots": [
+                                "DJI_20260326082632_0069_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 293945344,
+                        "triangulated_points": 572,
+                        "bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 101, Initial cost: 2.456085e+02, Final cost: 2.135678e+02, Termination: NO_CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.005599,
+                                "run": 1.511256,
+                                "teardown": 0.008226
+                            },
+                            "num_images": 6,
+                            "num_points": 4184,
+                            "num_reprojections": 14112
+                        },
+                        "retriangulation": {
+                            "num_points_before": 4184,
+                            "num_points_after": 4176,
+                            "wall_time": 0.28271479200338945
+                        },
+                        "bundle_after_retriangulation": {
+                            "brief_report": "Ceres Solver Report: Iterations: 101, Initial cost: 2.226855e+02, Final cost: 2.061268e+02, Termination: NO_CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.005366,
+                                "run": 1.522962,
+                                "teardown": 0.009956
+                            },
+                            "num_images": 6,
+                            "num_points": 4176,
+                            "num_reprojections": 14141
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082633_0070_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1525,
+                            "num_inliers": 1490,
+                            "shots": [
+                                "DJI_20260326082633_0070_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 301613056,
+                        "triangulated_points": 514,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 11, Initial cost: 2.607531e+02, Final cost: 2.301012e+02, Termination: NO_CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.012307,
+                                "run": 0.201105,
+                                "teardown": 0.009713
+                            },
+                            "num_images": 7,
+                            "num_interior_images": 7,
+                            "num_boundary_images": 0,
+                            "num_other_images": 0,
+                            "num_points": 4690,
+                            "num_reprojections": 16755
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082634_0071_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1553,
+                            "num_inliers": 1518,
+                            "shots": [
+                                "DJI_20260326082634_0071_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 302710784,
+                        "triangulated_points": 540,
+                        "bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 101, Initial cost: 3.586607e+02, Final cost: 3.281248e+02, Termination: NO_CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.007747,
+                                "run": 2.132331,
+                                "teardown": 0.01071
+                            },
+                            "num_images": 8,
+                            "num_points": 5230,
+                            "num_reprojections": 19465
+                        },
+                        "retriangulation": {
+                            "num_points_before": 5230,
+                            "num_points_after": 5217,
+                            "wall_time": 0.3696622089773882
+                        },
+                        "bundle_after_retriangulation": {
+                            "brief_report": "Ceres Solver Report: Iterations: 101, Initial cost: 3.439246e+02, Final cost: 3.232056e+02, Termination: NO_CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.007775,
+                                "run": 2.122861,
+                                "teardown": 0.012592
+                            },
+                            "num_images": 8,
+                            "num_points": 5217,
+                            "num_reprojections": 19465
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082635_0072_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1582,
+                            "num_inliers": 1541,
+                            "shots": [
+                                "DJI_20260326082635_0072_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 318947328,
+                        "triangulated_points": 565,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 11, Initial cost: 3.588794e+02, Final cost: 3.337194e+02, Termination: NO_CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.016384,
+                                "run": 0.265191,
+                                "teardown": 0.012207
+                            },
+                            "num_images": 9,
+                            "num_interior_images": 9,
+                            "num_boundary_images": 0,
+                            "num_other_images": 0,
+                            "num_points": 5782,
+                            "num_reprojections": 22240
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082636_0073_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1582,
+                            "num_inliers": 1535,
+                            "shots": [
+                                "DJI_20260326082636_0073_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 320421888,
+                        "triangulated_points": 528,
+                        "bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 101, Initial cost: 4.677737e+02, Final cost: 4.401915e+02, Termination: NO_CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.010008,
+                                "run": 2.759374,
+                                "teardown": 0.013083
+                            },
+                            "num_images": 10,
+                            "num_points": 6310,
+                            "num_reprojections": 24955
+                        },
+                        "retriangulation": {
+                            "num_points_before": 6310,
+                            "num_points_after": 6295,
+                            "wall_time": 0.4552344169933349
+                        },
+                        "bundle_after_retriangulation": {
+                            "brief_report": "Ceres Solver Report: Iterations: 101, Initial cost: 4.825955e+02, Final cost: 4.523034e+02, Termination: NO_CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.009961,
+                                "run": 2.791769,
+                                "teardown": 0.015872
+                            },
+                            "num_images": 10,
+                            "num_points": 6295,
+                            "num_reprojections": 24939
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082637_0074_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1743,
+                            "num_inliers": 1709,
+                            "shots": [
+                                "DJI_20260326082637_0074_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 336822272,
+                        "triangulated_points": 576,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 11, Initial cost: 4.734780e+02, Final cost: 4.503391e+02, Termination: NO_CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.019988,
+                                "run": 0.32186,
+                                "teardown": 0.01569
+                            },
+                            "num_images": 11,
+                            "num_interior_images": 11,
+                            "num_boundary_images": 0,
+                            "num_other_images": 0,
+                            "num_points": 6871,
+                            "num_reprojections": 27922
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082546_0030_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 716,
+                            "num_inliers": 308,
+                            "shots": [
+                                "DJI_20260326082546_0030_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 338509824,
+                        "triangulated_points": 266,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 11, Initial cost: 8.926470e+02, Final cost: 6.674629e+02, Termination: NO_CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.020702,
+                                "run": 0.346119,
+                                "teardown": 0.015086
+                            },
+                            "num_images": 12,
+                            "num_interior_images": 12,
+                            "num_boundary_images": 0,
+                            "num_other_images": 0,
+                            "num_points": 7137,
+                            "num_reprojections": 28762
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082545_0029_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 833,
+                            "num_inliers": 438,
+                            "shots": [
+                                "DJI_20260326082545_0029_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 339984384,
+                        "triangulated_points": 1173,
+                        "bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 11, Initial cost: 2.414766e+03, Final cost: 5.138829e+02, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.013763,
+                                "run": 0.483037,
+                                "teardown": 0.017991
+                            },
+                            "num_images": 13,
+                            "num_points": 8310,
+                            "num_reprojections": 31550
+                        },
+                        "retriangulation": {
+                            "num_points_before": 8310,
+                            "num_points_after": 8255,
+                            "wall_time": 0.5950023329933174
+                        },
+                        "bundle_after_retriangulation": {
+                            "brief_report": "Ceres Solver Report: Iterations: 17, Initial cost: 5.837073e+02, Final cost: 5.538818e+02, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.01341,
+                                "run": 0.651511,
+                                "teardown": 0.020449
+                            },
+                            "num_images": 13,
+                            "num_points": 8255,
+                            "num_reprojections": 32186
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082544_0028_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1366,
+                            "num_inliers": 1345,
+                            "shots": [
+                                "DJI_20260326082544_0028_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 356352000,
+                        "triangulated_points": 470,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 6, Initial cost: 6.066185e+02, Final cost: 5.787871e+02, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.026124,
+                                "run": 0.291269,
+                                "teardown": 0.019464
+                            },
+                            "num_images": 14,
+                            "num_interior_images": 14,
+                            "num_boundary_images": 0,
+                            "num_other_images": 0,
+                            "num_points": 8724,
+                            "num_reprojections": 34467
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082529_0013_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1355,
+                            "num_inliers": 1318,
+                            "shots": [
+                                "DJI_20260326082529_0013_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 358940672,
+                        "triangulated_points": 246,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 5, Initial cost: 7.563895e+02, Final cost: 6.851611e+02, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.027929,
+                                "run": 0.274773,
+                                "teardown": 0.020643
+                            },
+                            "num_images": 15,
+                            "num_interior_images": 15,
+                            "num_boundary_images": 0,
+                            "num_other_images": 0,
+                            "num_points": 8970,
+                            "num_reprojections": 36276
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082547_0031_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1414,
+                            "num_inliers": 1393,
+                            "shots": [
+                                "DJI_20260326082547_0031_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 358940672,
+                        "triangulated_points": 425,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 7, Initial cost: 7.528879e+02, Final cost: 7.256113e+02, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.029431,
+                                "run": 0.359429,
+                                "teardown": 0.021699
+                            },
+                            "num_images": 16,
+                            "num_interior_images": 16,
+                            "num_boundary_images": 0,
+                            "num_other_images": 0,
+                            "num_points": 9395,
+                            "num_reprojections": 38518
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082528_0012_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1502,
+                            "num_inliers": 1465,
+                            "shots": [
+                                "DJI_20260326082528_0012_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 370098176,
+                        "triangulated_points": 616,
+                        "bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 8, Initial cost: 8.657739e+02, Final cost: 8.141069e+02, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.018022,
+                                "run": 0.527417,
+                                "teardown": 0.021762
+                            },
+                            "num_images": 17,
+                            "num_points": 10011,
+                            "num_reprojections": 41215
+                        },
+                        "retriangulation": {
+                            "num_points_before": 10011,
+                            "num_points_after": 9988,
+                            "wall_time": 0.7384744159935508
+                        },
+                        "bundle_after_retriangulation": {
+                            "brief_report": "Ceres Solver Report: Iterations: 12, Initial cost: 8.833271e+02, Final cost: 8.498705e+02, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.018067,
+                                "run": 0.704701,
+                                "teardown": 0.028224
+                            },
+                            "num_images": 17,
+                            "num_points": 9988,
+                            "num_reprojections": 41151
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082530_0014_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1637,
+                            "num_inliers": 1617,
+                            "shots": [
+                                "DJI_20260326082530_0014_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 372948992,
+                        "triangulated_points": 451,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 9, Initial cost: 9.642407e+02, Final cost: 9.276980e+02, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.033783,
+                                "run": 0.48119,
+                                "teardown": 0.025379
+                            },
+                            "num_images": 18,
+                            "num_interior_images": 18,
+                            "num_boundary_images": 0,
+                            "num_other_images": 0,
+                            "num_points": 10439,
+                            "num_reprojections": 43669
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082527_0011_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1584,
+                            "num_inliers": 1548,
+                            "shots": [
+                                "DJI_20260326082527_0011_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 374128640,
+                        "triangulated_points": 399,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 6, Initial cost: 1.030096e+03, Final cost: 9.942425e+02, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.035067,
+                                "run": 0.387483,
+                                "teardown": 0.027147
+                            },
+                            "num_images": 19,
+                            "num_interior_images": 19,
+                            "num_boundary_images": 0,
+                            "num_other_images": 0,
+                            "num_points": 10838,
+                            "num_reprojections": 46014
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082531_0015_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1484,
+                            "num_inliers": 1448,
+                            "shots": [
+                                "DJI_20260326082531_0015_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 376717312,
+                        "triangulated_points": 342,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 7, Initial cost: 1.071129e+03, Final cost: 1.043291e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.03723,
+                                "run": 0.450445,
+                                "teardown": 0.027972
+                            },
+                            "num_images": 20,
+                            "num_interior_images": 20,
+                            "num_boundary_images": 0,
+                            "num_other_images": 0,
+                            "num_points": 11180,
+                            "num_reprojections": 48145
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082543_0027_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1557,
+                            "num_inliers": 1527,
+                            "shots": [
+                                "DJI_20260326082543_0027_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 381845504,
+                        "triangulated_points": 348,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 5, Initial cost: 1.132009e+03, Final cost: 1.101671e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.039417,
+                                "run": 0.387931,
+                                "teardown": 0.028816
+                            },
+                            "num_images": 21,
+                            "num_interior_images": 21,
+                            "num_boundary_images": 0,
+                            "num_other_images": 0,
+                            "num_points": 11528,
+                            "num_reprojections": 50368
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082611_0055_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1438,
+                            "num_inliers": 1398,
+                            "shots": [
+                                "DJI_20260326082611_0055_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 384073728,
+                        "triangulated_points": 164,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 8, Initial cost: 1.230712e+03, Final cost: 1.181545e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.040269,
+                                "run": 0.54056,
+                                "teardown": 0.029891
+                            },
+                            "num_images": 22,
+                            "num_interior_images": 22,
+                            "num_boundary_images": 0,
+                            "num_other_images": 0,
+                            "num_points": 11692,
+                            "num_reprojections": 52094
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082612_0056_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1496,
+                            "num_inliers": 1466,
+                            "shots": [
+                                "DJI_20260326082612_0056_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 384073728,
+                        "triangulated_points": 435,
+                        "bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 5, Initial cost: 1.282123e+03, Final cost: 1.240938e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.024225,
+                                "run": 0.537397,
+                                "teardown": 0.030209
+                            },
+                            "num_images": 23,
+                            "num_points": 12127,
+                            "num_reprojections": 54430
+                        },
+                        "retriangulation": {
+                            "num_points_before": 12127,
+                            "num_points_after": 12095,
+                            "wall_time": 0.949403832986718
+                        },
+                        "bundle_after_retriangulation": {
+                            "brief_report": "Ceres Solver Report: Iterations: 11, Initial cost: 1.339574e+03, Final cost: 1.290808e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.023822,
+                                "run": 0.893922,
+                                "teardown": 0.034595
+                            },
+                            "num_images": 23,
+                            "num_points": 12095,
+                            "num_reprojections": 54382
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082613_0057_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1550,
+                            "num_inliers": 1536,
+                            "shots": [
+                                "DJI_20260326082613_0057_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 388218880,
+                        "triangulated_points": 380,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 6, Initial cost: 1.382034e+03, Final cost: 1.348770e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.043911,
+                                "run": 0.49185,
+                                "teardown": 0.032434
+                            },
+                            "num_images": 24,
+                            "num_interior_images": 24,
+                            "num_boundary_images": 0,
+                            "num_other_images": 0,
+                            "num_points": 12475,
+                            "num_reprojections": 56681
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082610_0054_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1481,
+                            "num_inliers": 1451,
+                            "shots": [
+                                "DJI_20260326082610_0054_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 399720448,
+                        "triangulated_points": 327,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 6, Initial cost: 1.439215e+03, Final cost: 1.407516e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.045768,
+                                "run": 0.519888,
+                                "teardown": 0.032639
+                            },
+                            "num_images": 25,
+                            "num_interior_images": 25,
+                            "num_boundary_images": 0,
+                            "num_other_images": 0,
+                            "num_points": 12802,
+                            "num_reprojections": 58787
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082614_0058_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1470,
+                            "num_inliers": 1446,
+                            "shots": [
+                                "DJI_20260326082614_0058_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 399720448,
+                        "triangulated_points": 333,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 6, Initial cost: 1.477987e+03, Final cost: 1.452196e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.047745,
+                                "run": 0.529782,
+                                "teardown": 0.035532
+                            },
+                            "num_images": 26,
+                            "num_interior_images": 26,
+                            "num_boundary_images": 0,
+                            "num_other_images": 0,
+                            "num_points": 13135,
+                            "num_reprojections": 60898
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082542_0026_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1497,
+                            "num_inliers": 1474,
+                            "shots": [
+                                "DJI_20260326082542_0026_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 399720448,
+                        "triangulated_points": 320,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 5, Initial cost: 1.534024e+03, Final cost: 1.510511e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.048949,
+                                "run": 0.486732,
+                                "teardown": 0.037224
+                            },
+                            "num_images": 27,
+                            "num_interior_images": 27,
+                            "num_boundary_images": 0,
+                            "num_other_images": 0,
+                            "num_points": 13455,
+                            "num_reprojections": 63012
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082532_0016_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1487,
+                            "num_inliers": 1469,
+                            "shots": [
+                                "DJI_20260326082532_0016_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 405913600,
+                        "triangulated_points": 332,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 5, Initial cost: 1.583570e+03, Final cost: 1.564552e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.05073,
+                                "run": 0.51083,
+                                "teardown": 0.037903
+                            },
+                            "num_images": 28,
+                            "num_interior_images": 28,
+                            "num_boundary_images": 0,
+                            "num_other_images": 0,
+                            "num_points": 13787,
+                            "num_reprojections": 65145
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082548_0032_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1463,
+                            "num_inliers": 1427,
+                            "shots": [
+                                "DJI_20260326082548_0032_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 405913600,
+                        "triangulated_points": 318,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 6, Initial cost: 1.675522e+03, Final cost: 1.642899e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.054194,
+                                "run": 0.609624,
+                                "teardown": 0.039318
+                            },
+                            "num_images": 29,
+                            "num_interior_images": 29,
+                            "num_boundary_images": 0,
+                            "num_other_images": 0,
+                            "num_points": 14105,
+                            "num_reprojections": 67211
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082526_0010_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1468,
+                            "num_inliers": 1427,
+                            "shots": [
+                                "DJI_20260326082526_0010_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 405913600,
+                        "triangulated_points": 394,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 7, Initial cost: 1.734072e+03, Final cost: 1.703918e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.047965,
+                                "run": 0.673825,
+                                "teardown": 0.039277
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 0,
+                            "num_other_images": 0,
+                            "num_points": 14499,
+                            "num_reprojections": 69427
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082615_0059_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1441,
+                            "num_inliers": 1410,
+                            "shots": [
+                                "DJI_20260326082615_0059_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 411729920,
+                        "triangulated_points": 318,
+                        "bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 5, Initial cost: 1.776230e+03, Final cost: 1.750202e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.032636,
+                                "run": 0.722213,
+                                "teardown": 0.03891
+                            },
+                            "num_images": 31,
+                            "num_points": 14817,
+                            "num_reprojections": 71473
+                        },
+                        "retriangulation": {
+                            "num_points_before": 14817,
+                            "num_points_after": 14789,
+                            "wall_time": 1.193848082999466
+                        },
+                        "bundle_after_retriangulation": {
+                            "brief_report": "Ceres Solver Report: Iterations: 11, Initial cost: 1.888406e+03, Final cost: 1.824919e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.03235,
+                                "run": 1.231276,
+                                "teardown": 0.045456
+                            },
+                            "num_images": 31,
+                            "num_points": 14789,
+                            "num_reprojections": 71366
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082541_0025_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1441,
+                            "num_inliers": 1407,
+                            "shots": [
+                                "DJI_20260326082541_0025_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 416759808,
+                        "triangulated_points": 298,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 8, Initial cost: 1.908126e+03, Final cost: 1.880591e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.058531,
+                                "run": 0.78098,
+                                "teardown": 0.04079
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 2,
+                            "num_other_images": 0,
+                            "num_points": 14764,
+                            "num_reprojections": 72722
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082525_0009_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1379,
+                            "num_inliers": 1339,
+                            "shots": [
+                                "DJI_20260326082525_0009_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 418627584,
+                        "triangulated_points": 380,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 5, Initial cost: 1.939945e+03, Final cost: 1.914081e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.050795,
+                                "run": 0.598031,
+                                "teardown": 0.043751
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 3,
+                            "num_other_images": 0,
+                            "num_points": 15249,
+                            "num_reprojections": 75026
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082533_0017_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1374,
+                            "num_inliers": 1346,
+                            "shots": [
+                                "DJI_20260326082533_0017_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 419577856,
+                        "triangulated_points": 329,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 5, Initial cost: 1.970293e+03, Final cost: 1.949130e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.050634,
+                                "run": 0.593189,
+                                "teardown": 0.04234
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 4,
+                            "num_other_images": 0,
+                            "num_points": 14629,
+                            "num_reprojections": 74387
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082540_0024_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1386,
+                            "num_inliers": 1348,
+                            "shots": [
+                                "DJI_20260326082540_0024_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 422084608,
+                        "triangulated_points": 306,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 5, Initial cost: 1.995121e+03, Final cost: 1.973294e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.059106,
+                                "run": 0.612488,
+                                "teardown": 0.043637
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 5,
+                            "num_other_images": 0,
+                            "num_points": 14528,
+                            "num_reprojections": 74943
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082616_0060_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1436,
+                            "num_inliers": 1409,
+                            "shots": [
+                                "DJI_20260326082616_0060_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 422084608,
+                        "triangulated_points": 352,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 4, Initial cost: 2.021680e+03, Final cost: 1.998022e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.053347,
+                                "run": 0.515148,
+                                "teardown": 0.042329
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 6,
+                            "num_other_images": 0,
+                            "num_points": 14455,
+                            "num_reprojections": 75398
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082539_0023_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1449,
+                            "num_inliers": 1405,
+                            "shots": [
+                                "DJI_20260326082539_0023_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 428834816,
+                        "triangulated_points": 435,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 4, Initial cost: 2.022894e+03, Final cost: 2.005543e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.052336,
+                                "run": 0.524976,
+                                "teardown": 0.044437
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 7,
+                            "num_other_images": 0,
+                            "num_points": 14471,
+                            "num_reprojections": 75961
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082617_0061_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1492,
+                            "num_inliers": 1451,
+                            "shots": [
+                                "DJI_20260326082617_0061_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 428834816,
+                        "triangulated_points": 370,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 5, Initial cost: 2.082676e+03, Final cost: 2.057719e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.053333,
+                                "run": 0.623313,
+                                "teardown": 0.043485
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 8,
+                            "num_other_images": 0,
+                            "num_points": 14812,
+                            "num_reprojections": 78040
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082618_0062_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1482,
+                            "num_inliers": 1435,
+                            "shots": [
+                                "DJI_20260326082618_0062_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 431456256,
+                        "triangulated_points": 331,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 6, Initial cost: 2.110244e+03, Final cost: 2.084954e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.054126,
+                                "run": 0.688028,
+                                "teardown": 0.045026
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 9,
+                            "num_other_images": 0,
+                            "num_points": 14679,
+                            "num_reprojections": 78216
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082620_0063_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1420,
+                            "num_inliers": 1373,
+                            "shots": [
+                                "DJI_20260326082620_0063_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 431456256,
+                        "triangulated_points": 496,
+                        "bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 5, Initial cost: 2.292719e+03, Final cost: 2.271317e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.041376,
+                                "run": 0.947411,
+                                "teardown": 0.048013
+                            },
+                            "num_images": 40,
+                            "num_points": 18085,
+                            "num_reprojections": 90468
+                        },
+                        "retriangulation": {
+                            "num_points_before": 18085,
+                            "num_points_after": 18015,
+                            "wall_time": 1.494318083015969
+                        },
+                        "bundle_after_retriangulation": {
+                            "brief_report": "Ceres Solver Report: Iterations: 12, Initial cost: 2.410087e+03, Final cost: 2.327643e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.0416,
+                                "run": 1.737834,
+                                "teardown": 0.057423
+                            },
+                            "num_images": 40,
+                            "num_points": 18015,
+                            "num_reprojections": 90176
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082549_0033_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1358,
+                            "num_inliers": 1332,
+                            "shots": [
+                                "DJI_20260326082549_0033_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 466010112,
+                        "triangulated_points": 430,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 9, Initial cost: 2.303209e+03, Final cost: 2.260825e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.057577,
+                                "run": 0.965235,
+                                "teardown": 0.046726
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 11,
+                            "num_other_images": 0,
+                            "num_points": 16114,
+                            "num_reprojections": 86055
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082524_0008_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1417,
+                            "num_inliers": 1399,
+                            "shots": [
+                                "DJI_20260326082524_0008_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 466010112,
+                        "triangulated_points": 489,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 8, Initial cost: 2.302825e+03, Final cost: 2.277866e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.060088,
+                                "run": 0.893097,
+                                "teardown": 0.04914
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 12,
+                            "num_other_images": 0,
+                            "num_points": 16244,
+                            "num_reprojections": 87083
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082523_0007_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1440,
+                            "num_inliers": 1396,
+                            "shots": [
+                                "DJI_20260326082523_0007_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 466010112,
+                        "triangulated_points": 490,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 5, Initial cost: 2.312281e+03, Final cost: 2.288835e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.058859,
+                                "run": 0.67266,
+                                "teardown": 0.049044
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 13,
+                            "num_other_images": 0,
+                            "num_points": 16268,
+                            "num_reprojections": 88102
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082550_0034_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1486,
+                            "num_inliers": 1449,
+                            "shots": [
+                                "DJI_20260326082550_0034_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 466272256,
+                        "triangulated_points": 376,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 5, Initial cost: 2.394649e+03, Final cost: 2.355510e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.06109,
+                                "run": 0.689885,
+                                "teardown": 0.050662
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 14,
+                            "num_other_images": 0,
+                            "num_points": 16399,
+                            "num_reprojections": 89563
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082551_0035_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1557,
+                            "num_inliers": 1505,
+                            "shots": [
+                                "DJI_20260326082551_0035_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 466272256,
+                        "triangulated_points": 502,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 8, Initial cost: 2.468721e+03, Final cost: 2.430583e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.061056,
+                                "run": 0.93115,
+                                "teardown": 0.050939
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 15,
+                            "num_other_images": 0,
+                            "num_points": 16665,
+                            "num_reprojections": 91386
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082522_0006_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1599,
+                            "num_inliers": 1537,
+                            "shots": [
+                                "DJI_20260326082522_0006_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 466272256,
+                        "triangulated_points": 411,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 4, Initial cost: 2.476085e+03, Final cost: 2.449523e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.063867,
+                                "run": 0.613533,
+                                "teardown": 0.052225
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 16,
+                            "num_other_images": 0,
+                            "num_points": 16866,
+                            "num_reprojections": 92751
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082552_0036_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1601,
+                            "num_inliers": 1540,
+                            "shots": [
+                                "DJI_20260326082552_0036_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 466272256,
+                        "triangulated_points": 429,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 5, Initial cost: 2.542165e+03, Final cost: 2.504118e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.062053,
+                                "run": 0.714418,
+                                "teardown": 0.052506
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 17,
+                            "num_other_images": 0,
+                            "num_points": 16787,
+                            "num_reprojections": 93569
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082553_0037_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1509,
+                            "num_inliers": 1438,
+                            "shots": [
+                                "DJI_20260326082553_0037_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 476512256,
+                        "triangulated_points": 448,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 7, Initial cost: 2.556847e+03, Final cost: 2.525189e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.063513,
+                                "run": 0.889399,
+                                "teardown": 0.05513
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 18,
+                            "num_other_images": 0,
+                            "num_points": 17030,
+                            "num_reprojections": 94597
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082521_0005_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1590,
+                            "num_inliers": 1517,
+                            "shots": [
+                                "DJI_20260326082521_0005_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 476512256,
+                        "triangulated_points": 520,
+                        "bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 4, Initial cost: 2.957251e+03, Final cost: 2.920708e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.052122,
+                                "run": 1.053904,
+                                "teardown": 0.060487
+                            },
+                            "num_images": 49,
+                            "num_points": 22109,
+                            "num_reprojections": 111500
+                        },
+                        "retriangulation": {
+                            "num_points_before": 22109,
+                            "num_points_after": 22029,
+                            "wall_time": 1.8062915000191424
+                        },
+                        "bundle_after_retriangulation": {
+                            "brief_report": "Ceres Solver Report: Iterations: 11, Initial cost: 3.099652e+03, Final cost: 2.989982e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.05268,
+                                "run": 2.067899,
+                                "teardown": 0.072952
+                            },
+                            "num_images": 49,
+                            "num_points": 22029,
+                            "num_reprojections": 111031
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082554_0038_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1565,
+                            "num_inliers": 1544,
+                            "shots": [
+                                "DJI_20260326082554_0038_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 511574016,
+                        "triangulated_points": 434,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 5, Initial cost: 2.640462e+03, Final cost: 2.608639e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.065032,
+                                "run": 0.729776,
+                                "teardown": 0.055794
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 20,
+                            "num_other_images": 0,
+                            "num_points": 17238,
+                            "num_reprojections": 96226
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082520_0004_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1650,
+                            "num_inliers": 1623,
+                            "shots": [
+                                "DJI_20260326082520_0004_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 511574016,
+                        "triangulated_points": 451,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 5, Initial cost: 2.632194e+03, Final cost: 2.600305e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.066063,
+                                "run": 0.724214,
+                                "teardown": 0.053965
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 21,
+                            "num_other_images": 0,
+                            "num_points": 17337,
+                            "num_reprojections": 97058
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082555_0039_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1581,
+                            "num_inliers": 1545,
+                            "shots": [
+                                "DJI_20260326082555_0039_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 511574016,
+                        "triangulated_points": 392,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 5, Initial cost: 2.628294e+03, Final cost: 2.597586e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.065823,
+                                "run": 0.730758,
+                                "teardown": 0.054891
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 22,
+                            "num_other_images": 0,
+                            "num_points": 17351,
+                            "num_reprojections": 97325
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082519_0003_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1577,
+                            "num_inliers": 1537,
+                            "shots": [
+                                "DJI_20260326082519_0003_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 511574016,
+                        "triangulated_points": 404,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 9, Initial cost: 2.646015e+03, Final cost: 2.620366e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.066625,
+                                "run": 1.056571,
+                                "teardown": 0.054222
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 23,
+                            "num_other_images": 0,
+                            "num_points": 17342,
+                            "num_reprojections": 97443
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082556_0040_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1589,
+                            "num_inliers": 1546,
+                            "shots": [
+                                "DJI_20260326082556_0040_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 511574016,
+                        "triangulated_points": 430,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 5, Initial cost: 2.673963e+03, Final cost: 2.648595e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.065264,
+                                "run": 0.714342,
+                                "teardown": 0.056375
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 24,
+                            "num_other_images": 0,
+                            "num_points": 17335,
+                            "num_reprojections": 98221
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082518_0002_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1552,
+                            "num_inliers": 1517,
+                            "shots": [
+                                "DJI_20260326082518_0002_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 511639552,
+                        "triangulated_points": 295,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 8, Initial cost: 2.690538e+03, Final cost: 2.664537e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.066568,
+                                "run": 0.998613,
+                                "teardown": 0.054596
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 25,
+                            "num_other_images": 0,
+                            "num_points": 17157,
+                            "num_reprojections": 98233
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082557_0041_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1508,
+                            "num_inliers": 1451,
+                            "shots": [
+                                "DJI_20260326082557_0041_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 511639552,
+                        "triangulated_points": 328,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 5, Initial cost: 2.658526e+03, Final cost: 2.637297e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.066638,
+                                "run": 0.72266,
+                                "teardown": 0.0548
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 26,
+                            "num_other_images": 0,
+                            "num_points": 16992,
+                            "num_reprojections": 98061
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082534_0018_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1324,
+                            "num_inliers": 1298,
+                            "shots": [
+                                "DJI_20260326082534_0018_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 511639552,
+                        "triangulated_points": 297,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 11, Initial cost: 2.662078e+03, Final cost: 2.633364e+03, Termination: NO_CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.061692,
+                                "run": 1.123898,
+                                "teardown": 0.049031
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 27,
+                            "num_other_images": 0,
+                            "num_points": 14981,
+                            "num_reprojections": 90138
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082538_0022_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1315,
+                            "num_inliers": 1276,
+                            "shots": [
+                                "DJI_20260326082538_0022_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 511639552,
+                        "triangulated_points": 352,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 8, Initial cost: 2.715932e+03, Final cost: 2.674497e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.063153,
+                                "run": 0.898217,
+                                "teardown": 0.051586
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 28,
+                            "num_other_images": 0,
+                            "num_points": 14886,
+                            "num_reprojections": 90014
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082537_0021_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1414,
+                            "num_inliers": 1354,
+                            "shots": [
+                                "DJI_20260326082537_0021_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 512393216,
+                        "triangulated_points": 514,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 5, Initial cost: 2.702830e+03, Final cost: 2.678190e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.063432,
+                                "run": 0.680733,
+                                "teardown": 0.050295
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 29,
+                            "num_other_images": 0,
+                            "num_points": 14858,
+                            "num_reprojections": 89940
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082536_0020_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1368,
+                            "num_inliers": 1327,
+                            "shots": [
+                                "DJI_20260326082536_0020_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 512393216,
+                        "triangulated_points": 239,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 7, Initial cost: 2.748167e+03, Final cost: 2.712192e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.064648,
+                                "run": 0.831262,
+                                "teardown": 0.04888
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 30,
+                            "num_other_images": 0,
+                            "num_points": 14683,
+                            "num_reprojections": 89480
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082535_0019_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1424,
+                            "num_inliers": 1357,
+                            "shots": [
+                                "DJI_20260326082535_0019_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 512393216,
+                        "triangulated_points": 424,
+                        "bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 6, Initial cost: 3.755919e+03, Final cost: 3.736244e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.066054,
+                                "run": 1.767431,
+                                "teardown": 0.077117
+                            },
+                            "num_images": 61,
+                            "num_points": 26587,
+                            "num_reprojections": 137577
+                        },
+                        "retriangulation": {
+                            "num_points_before": 26587,
+                            "num_points_after": 26488,
+                            "wall_time": 2.2259455420135055
+                        },
+                        "bundle_after_retriangulation": {
+                            "brief_report": "Ceres Solver Report: Iterations: 13, Initial cost: 4.019088e+03, Final cost: 3.877624e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.067829,
+                                "run": 3.092882,
+                                "teardown": 0.092234
+                            },
+                            "num_images": 61,
+                            "num_points": 26488,
+                            "num_reprojections": 137102
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082601_0045_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1268,
+                            "num_inliers": 1228,
+                            "shots": [
+                                "DJI_20260326082601_0045_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 573440000,
+                        "triangulated_points": 167,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 5, Initial cost: 2.830525e+03, Final cost: 2.791279e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.069392,
+                                "run": 0.727633,
+                                "teardown": 0.053926
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 32,
+                            "num_other_images": 0,
+                            "num_points": 16590,
+                            "num_reprojections": 99453
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082602_0046_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1298,
+                            "num_inliers": 1265,
+                            "shots": [
+                                "DJI_20260326082602_0046_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 573440000,
+                        "triangulated_points": 348,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 4, Initial cost: 2.819208e+03, Final cost: 2.798008e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.068593,
+                                "run": 0.642556,
+                                "teardown": 0.055496
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 33,
+                            "num_other_images": 0,
+                            "num_points": 16475,
+                            "num_reprojections": 99699
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082601_0044_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1349,
+                            "num_inliers": 1315,
+                            "shots": [
+                                "DJI_20260326082601_0044_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 573440000,
+                        "triangulated_points": 398,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 7, Initial cost: 2.842558e+03, Final cost: 2.820495e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.069413,
+                                "run": 0.917013,
+                                "teardown": 0.054335
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 34,
+                            "num_other_images": 0,
+                            "num_points": 16602,
+                            "num_reprojections": 100484
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082600_0043_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1456,
+                            "num_inliers": 1418,
+                            "shots": [
+                                "DJI_20260326082600_0043_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 573440000,
+                        "triangulated_points": 317,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 6, Initial cost: 2.772661e+03, Final cost: 2.749040e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.067135,
+                                "run": 0.794164,
+                                "teardown": 0.052105
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 35,
+                            "num_other_images": 0,
+                            "num_points": 16178,
+                            "num_reprojections": 96237
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082603_0047_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1331,
+                            "num_inliers": 1292,
+                            "shots": [
+                                "DJI_20260326082603_0047_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 573440000,
+                        "triangulated_points": 264,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 5, Initial cost: 2.867996e+03, Final cost: 2.845327e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.069402,
+                                "run": 0.722736,
+                                "teardown": 0.056404
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 36,
+                            "num_other_images": 0,
+                            "num_points": 16219,
+                            "num_reprojections": 100553
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082559_0042_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1321,
+                            "num_inliers": 1288,
+                            "shots": [
+                                "DJI_20260326082559_0042_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 573440000,
+                        "triangulated_points": 580,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 5, Initial cost: 2.764806e+03, Final cost: 2.741810e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.089617,
+                                "run": 0.706704,
+                                "teardown": 0.050164
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 37,
+                            "num_other_images": 0,
+                            "num_points": 16022,
+                            "num_reprojections": 93856
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082516_0001_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1371,
+                            "num_inliers": 1340,
+                            "shots": [
+                                "DJI_20260326082516_0001_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 573440000,
+                        "triangulated_points": 227,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 5, Initial cost: 2.757391e+03, Final cost: 2.730939e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.066591,
+                                "run": 0.6936,
+                                "teardown": 0.051577
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 38,
+                            "num_other_images": 0,
+                            "num_points": 15755,
+                            "num_reprojections": 93548
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082609_0053_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1251,
+                            "num_inliers": 1216,
+                            "shots": [
+                                "DJI_20260326082609_0053_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 573440000,
+                        "triangulated_points": 328,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 7, Initial cost: 3.283465e+03, Final cost: 3.256947e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.074468,
+                                "run": 0.942915,
+                                "teardown": 0.057394
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 39,
+                            "num_other_images": 0,
+                            "num_points": 15697,
+                            "num_reprojections": 104945
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082604_0048_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1244,
+                            "num_inliers": 1195,
+                            "shots": [
+                                "DJI_20260326082604_0048_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 573440000,
+                        "triangulated_points": 324,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 4, Initial cost: 2.863904e+03, Final cost: 2.838517e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.065915,
+                                "run": 0.614451,
+                                "teardown": 0.050825
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 40,
+                            "num_other_images": 0,
+                            "num_points": 14562,
+                            "num_reprojections": 93425
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082605_0049_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1222,
+                            "num_inliers": 1172,
+                            "shots": [
+                                "DJI_20260326082605_0049_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 573440000,
+                        "triangulated_points": 299,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 5, Initial cost: 2.924697e+03, Final cost: 2.899679e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.06722,
+                                "run": 0.714291,
+                                "teardown": 0.051517
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 41,
+                            "num_other_images": 0,
+                            "num_points": 14864,
+                            "num_reprojections": 95207
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082606_0050_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1245,
+                            "num_inliers": 1195,
+                            "shots": [
+                                "DJI_20260326082606_0050_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 573440000,
+                        "triangulated_points": 290,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 7, Initial cost: 3.180693e+03, Final cost: 3.151461e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.070022,
+                                "run": 0.91376,
+                                "teardown": 0.05431
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 42,
+                            "num_other_images": 0,
+                            "num_points": 15821,
+                            "num_reprojections": 103052
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082608_0052_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1216,
+                            "num_inliers": 1166,
+                            "shots": [
+                                "DJI_20260326082608_0052_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 573538304,
+                        "triangulated_points": 293,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 7, Initial cost: 3.445422e+03, Final cost: 3.417287e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.075617,
+                                "run": 0.974066,
+                                "teardown": 0.059282
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 43,
+                            "num_other_images": 0,
+                            "num_points": 15956,
+                            "num_reprojections": 109682
+                        }
+                    },
+                    {
+                        "images": [
+                            "DJI_20260326082607_0051_D.JPG"
+                        ],
+                        "resection": {
+                            "num_common_points": 1300,
+                            "num_inliers": 1261,
+                            "shots": [
+                                "DJI_20260326082607_0051_D.JPG"
+                            ]
+                        },
+                        "memory_usage": 573538304,
+                        "triangulated_points": 410,
+                        "local_bundle": {
+                            "brief_report": "Ceres Solver Report: Iterations: 9, Initial cost: 3.430101e+03, Final cost: 3.409259e+03, Termination: CONVERGENCE",
+                            "wall_times": {
+                                "setup": 0.075332,
+                                "run": 1.136377,
+                                "teardown": 0.061238
+                            },
+                            "num_images": 30,
+                            "num_interior_images": 30,
+                            "num_boundary_images": 44,
+                            "num_other_images": 0,
+                            "num_points": 16088,
+                            "num_reprojections": 109814
+                        }
+                    }
+                ]
+            }
+        }
+    ],
+    "wall_times": {
+        "compute_image_pairs": 5.953658082988113,
+        "compute_reconstructions": 108.23618754200288
+    },
+    "not_reconstructed_images": []
+}
