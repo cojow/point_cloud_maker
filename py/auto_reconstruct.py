@@ -7,11 +7,16 @@ import sys
 import shutil
 import platform
 
+'''
+ Run using python py/auto_reconstruct.py data/"""foldername"""
+
+'''
+
 def is_mac():
     """Detects if the script is running on macOS (Apple Silicon/Intel)."""
     return platform.system().lower() == "darwin"
 
-def run_docker_command(image, command_list, project_path, work_dir_suffix="", entrypoint=None):
+def run_docker_command(image, command_list, project_path, work_dir_suffix="", entrypoint=None, extra_docker_args=None):
     """Spins up a targeted Docker container for a specific task."""
     work_dir = os.path.join(project_path, work_dir_suffix) if work_dir_suffix else project_path
     
@@ -20,6 +25,9 @@ def run_docker_command(image, command_list, project_path, work_dir_suffix="", en
         "-v", f"{project_path}:{project_path}",
         "-w", work_dir
     ]
+    
+    if extra_docker_args:
+        docker_cmd.extend(extra_docker_args)
         
     if entrypoint:
         docker_cmd.extend(["--entrypoint", entrypoint])
@@ -96,7 +104,6 @@ def inject_mrk_data(project_path, mrk_files):
     mrk_data = {}
     
     for mrk_file in mrk_files:
-        # Code truncated for brevity; uses your exact RTK injection logic
         filename = os.path.basename(mrk_file)
         prefix_match = re.match(r"^(F\d)_", filename)
         prefix = prefix_match.group(1) if prefix_match else "DEFAULT"
@@ -177,7 +184,8 @@ def main(project_path):
             project_path=project_path,
             entrypoint=opensfm_bin
         )
-        print(f"\nDense point cloud generated at: {os.path.join(project_path, 'undistorted', 'depthmaps', 'merged.ply')}")
+        # Record where OpenSfM saves its dense cloud
+        source_ply = os.path.join(project_path, 'undistorted', 'depthmaps', 'merged.ply')
         
     else:
         print("\n--- Linux Detected: Running High-Performance OpenMVS Densification ---")
@@ -190,16 +198,34 @@ def main(project_path):
             entrypoint=opensfm_bin
         )
         
+        linux_memory_hacks = [
+            "-e", "MALLOC_CHECK_=0",     
+            "-e", "OMP_NUM_THREADS=2",   
+            "-e", "OPENBLAS_NUM_THREADS=2"
+        ]
+        
         run_docker_command(
             image="opendronemap/odm:latest",
             command_list=["--resolution-level", "2", "scene.mvs"],
             project_path=project_path,
             work_dir_suffix="undistorted/openmvs",
-            entrypoint=densify_bin
+            entrypoint=densify_bin,
+            extra_docker_args=linux_memory_hacks
         )
-        print(f"\nDense point cloud generated at: {os.path.join(project_path, 'undistorted', 'openmvs', 'scene_dense.ply')}")
+        # Record where OpenMVS saves its dense cloud
+        source_ply = os.path.join(project_path, 'undistorted', 'openmvs', 'scene_dense.ply')
 
-    print("\n--- Pipeline Complete ---")
+    # --- THE NEW UNIFICATION STEP ---
+    print("\n--- Finalizing Project Files ---")
+    final_ply_path = os.path.join(project_path, 'scene_dense.ply')
+    
+    if os.path.exists(source_ply):
+        # We copy it up to the main folder so the downstream Open3D script is totally blind
+        # to whether we used a Mac or a Supercomputer. It just looks for scene_dense.ply!
+        shutil.copy2(source_ply, final_ply_path)
+        print(f"Pipeline Complete! Point cloud successfully extracted to: \n -> {final_ply_path}")
+    else:
+        print(f"Error: Expected point cloud not found at {source_ply}. Densification may have failed.")
 
 if __name__ == "__main__":
     if len(sys.argv) < 2: 
