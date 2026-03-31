@@ -4,6 +4,8 @@ import os
 import csv
 from scipy.spatial import Delaunay, KDTree
 import sys
+import time
+from tqdm import tqdm
 
 def calculate_alpha_shape(points_2d, alpha):
     if len(points_2d) < 4:
@@ -20,14 +22,17 @@ def calculate_alpha_shape(points_2d, alpha):
     ])
     
     lengths = np.sqrt(np.sum((edges[:, :, 0, :] - edges[:, :, 1, :])**2, axis=2))
-    circum_r = lengths[0, :] * lengths[1, :] * lengths[2, :] / (
-        np.sqrt((lengths[0, :] + lengths[1, :] + lengths[2, :]) *
-                (-lengths[0, :] + lengths[1, :] + lengths[2, :]) *
-                (lengths[0, :] - lengths[1, :] + lengths[2, :]) *
-                (lengths[0, :] + lengths[1, :] - lengths[2, :]))
-    )
     
-    final_simplices = tri.simplices[circum_r < alpha]
+    # Handle potential division by zero warnings cleanly
+    with np.errstate(divide='ignore', invalid='ignore'):
+        circum_r = lengths[0, :] * lengths[1, :] * lengths[2, :] / (
+            np.sqrt((lengths[0, :] + lengths[1, :] + lengths[2, :]) *
+                    (-lengths[0, :] + lengths[1, :] + lengths[2, :]) *
+                    (lengths[0, :] - lengths[1, :] + lengths[2, :]) *
+                    (lengths[0, :] + lengths[1, :] - lengths[2, :]))
+        )
+    
+    final_simplices = tri.simplices[np.nan_to_num(circum_r) < alpha]
     if len(final_simplices) == 0: return None
     
     hull_pts_3d = np.concatenate([points_2d, np.zeros((len(points_2d), 1))], axis=1)
@@ -45,14 +50,43 @@ def apply_house_cookie_cutter(ag_pts, concave_voxel_grid, area_m2, avg_h):
     min_bound = concave_voxel_grid.get_min_bound()
     max_bound = concave_voxel_grid.get_max_bound()
     
+    # 1. Bounding box filter
     box_mask = (ag_pts[:, 0] >= min_bound[0]) & (ag_pts[:, 0] <= max_bound[0]) & \
                (ag_pts[:, 1] >= min_bound[1]) & (ag_pts[:, 1] <= max_bound[1])
     box_pts = ag_pts[box_mask]
     
+    if len(box_pts) == 0: return None
+    
+    # 2. 2D Cookie Cutter (Alpha Shape containment)
     contain_mask = concave_voxel_grid.check_if_included(o3d.utility.Vector3dVector(box_pts * [1., 1., 0.]))
     final_house_pts = box_pts[contain_mask]
     if len(final_house_pts) == 0: return None
     
+    # --- FIX 1: The "Lawnmower" Z-Clip ---
+    # Universally ignore the bottom 0.3 meters to bypass uneven terrain variations.
+    final_house_pts = final_house_pts[final_house_pts[:, 2] >= 0.3]
+    if len(final_house_pts) == 0: return None
+
+    # --- FIX 2: Anisotropic DBSCAN (Z-Squish) ---
+    # Compress vertical gaps to connect floating roofs to foundations, 
+    # while maintaining horizontal gaps to isolate disconnected trees/clutter.
+    squished_pts = np.copy(final_house_pts)
+    squished_pts[:, 2] *= 0.1  
+    
+    pcd_temp = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(squished_pts))
+    labels = np.array(pcd_temp.cluster_dbscan(eps=0.75, min_points=15))
+    
+    if labels.max() >= 0:
+        # Keep only the largest contiguous structure
+        largest_cluster_idx = np.bincount(labels[labels >= 0]).argmax()
+        main_building_mask = (labels == largest_cluster_idx)
+        
+        # Apply the mask back to the original, correctly scaled points
+        final_house_pts = final_house_pts[main_building_mask]
+    else:
+        return None
+    
+    # 3. Final Height Validation
     max_h = final_house_pts[:, 2].max()
     min_h = final_house_pts[:, 2].min()
     
@@ -60,22 +94,27 @@ def apply_house_cookie_cutter(ag_pts, concave_voxel_grid, area_m2, avg_h):
         pcd = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(final_house_pts))
         volume = area_m2 * avg_h
         return pcd, round(area_m2, 2), round(volume, 2)
+        
     return None
 
 def process_reconstruction_v22(ply_path):
-    output_dir = os.path.join(os.path.dirname(ply_path), "house_analysis_v22")
+    global_start_time = time.time()
+    
+    output_dir = os.path.join(os.path.dirname(ply_path), "house_analysis_v_23")
     debug_dir = os.path.join(output_dir, "individual_houses")
     for d in [output_dir, debug_dir]:
         if not os.path.exists(d): os.makedirs(d)
         
-    print(f"--- Loading point cloud from {ply_path} ---")
+    print(f"\n[1/6] Loading point cloud from {ply_path}...")
+    step_start = time.time()
     pcd = o3d.io.read_point_cloud(ply_path)
+    print(f"      Done in {time.time() - step_start:.2f}s")
 
-    print("Cleaning statistical outliers...")
+    print("[2/6] Cleaning statistical outliers and leveling via PCA...")
+    step_start = time.time()
     pcd, _ = pcd.remove_statistical_outlier(nb_neighbors=20, std_ratio=2.2)
     pts_clean = np.asarray(pcd.points)
 
-    print("Leveling point cloud via PCA...")
     z_vals = pts_clean[:, 2]
     ground_thresh = np.percentile(z_vals, 30)
     ground_pts = pts_clean[z_vals < ground_thresh]
@@ -100,8 +139,10 @@ def process_reconstruction_v22(ply_path):
         
     original_offset_xy = centroid[:2]
     pcd.translate((-original_offset_xy[0], -original_offset_xy[1], 0))
+    print(f"      Done in {time.time() - step_start:.2f}s")
 
-    print("Applying RANSAC to drop the ground plane...")
+    print("[3/6] Applying RANSAC to drop the ground plane...")
+    step_start = time.time()
     plane_model, inliers = pcd.segment_plane(distance_threshold=0.5, ransac_n=3, num_iterations=1000)
     
     ground_pcd = pcd.select_by_index(inliers)
@@ -110,12 +151,16 @@ def process_reconstruction_v22(ply_path):
     above_ground_pcd = pcd.select_by_index(inliers, invert=True)
     above_ground_pcd.translate((0, 0, -ground_z))
     ag_pts = np.asarray(above_ground_pcd.points)
+    print(f"      Done in {time.time() - step_start:.2f}s")
 
-    print("Isolating potential roofs...")
+    print("[4/6] Isolating potential roofs...")
+    step_start = time.time()
     high_idx = np.where(ag_pts[:, 2] > 2.2)[0]
     high_pts = ag_pts[high_idx]
     
-    if len(high_pts) < 10: return
+    if len(high_pts) < 10: 
+        print("      Insufficient high points found. Exiting.")
+        return
 
     tree = KDTree(high_pts)
     _, neighbor_indices = tree.query(high_pts, k=10) 
@@ -126,19 +171,24 @@ def process_reconstruction_v22(ply_path):
     roof_idx = high_idx[planar_mask]
     roof_pcd = above_ground_pcd.select_by_index(roof_idx)
     real_roof_pts = np.asarray(roof_pcd.points)
+    print(f"      Done in {time.time() - step_start:.2f}s")
     
-    print("Performing broad clustering pass (Z-squish)...")
+    print("[5/6] Performing broad clustering pass (Z-squish) & Extraction...")
+    step_start = time.time()
     roof_pts_squished = np.copy(real_roof_pts)
     roof_pts_squished[:, 2] *= 0.1 
     clustering_pcd = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(roof_pts_squished))
     
     labels = np.array(clustering_pcd.cluster_dbscan(eps=2.5, min_points=15))
     
-    if labels.size == 0 or labels.max() < 0: return
+    if labels.size == 0 or labels.max() < 0: 
+        print("      No clusters found. Exiting.")
+        return
 
     house_list = []
+    num_clusters = labels.max() + 1
     
-    for i in range(labels.max() + 1):
+    for i in tqdm(range(num_clusters), desc="      Extracting Buildings", unit="cluster"):
         broad_idx = np.where(labels == i)[0]
         current_blob_roof_pts = real_roof_pts[broad_idx]
         
@@ -170,13 +220,10 @@ def process_reconstruction_v22(ply_path):
                 valid_roof_pts = []
                 remaining_pts = sc_pts.copy()
                 
-                # --- NEW FIX: The Massive Threshold Bump ---
-                # We now demand at least 500 points to even consider running RANSAC
                 while len(remaining_pts) > 500:
                     pcd_temp = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(remaining_pts))
                     plane_model, inliers = pcd_temp.segment_plane(distance_threshold=0.15, ransac_n=3, num_iterations=250)
                     
-                    # RANSAC must find at least 500 perfectly flat points
                     if len(inliers) < 500: 
                         break 
                         
@@ -189,7 +236,6 @@ def process_reconstruction_v22(ply_path):
                         largest_cluster_idx = np.bincount(plane_labels[plane_labels >= 0]).argmax()
                         contiguous_inliers = np.where(plane_labels == largest_cluster_idx)[0]
                         
-                        # DBSCAN must confirm at least 400 of those flat points are physically touching
                         if len(contiguous_inliers) > 400:
                             normal = np.array(plane_model[:3])
                             normal = normal / np.linalg.norm(normal)
@@ -247,15 +293,23 @@ def process_reconstruction_v22(ply_path):
                             "volume_m3": vol_meas
                         })
 
+    print(f"      Done in {time.time() - step_start:.2f}s")
+
+    print("[6/6] Finalizing CSV Output...")
     csv_path = os.path.join(output_dir, "house_measurements.csv")
     if house_list:
         with open(csv_path, 'w', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=["house_ID", "Area_m2", "volume_m3"])
             writer.writeheader()
             writer.writerows(house_list)
+            
+    total_elapsed = time.time() - global_start_time
     
-    print("--- Top-Down Extraction complete ---")
-    print(f"Deterministically identified {len(house_list)} unique buildings.")
+    print("\n" + "="*40)
+    print("--- Top-Down Extraction Complete ---")
+    print(f"Total Processing Time:   {total_elapsed:.2f} seconds")
+    print(f"Unique Buildings Found:  {len(house_list)}")
+    print("="*40 + "\n")
 
 if __name__ == "__main__":
     test_file = 'data/ElmA60H90P12/scene_dense.ply'
