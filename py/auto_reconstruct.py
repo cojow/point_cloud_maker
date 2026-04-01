@@ -10,7 +10,7 @@ import time
 
 '''
  Run using python py/auto_reconstruct.py data/"""foldername"""
- python py/auto_reconstruct.py data/ElmTestP5
+ python py/auto_reconstruct.py data/ElmA60H90P12
 
 '''
 
@@ -167,15 +167,39 @@ def main(project_path):
     opensfm_bin = get_odm_opensfm_path()
     print(f"--- Located OpenSfM Engine at: {opensfm_bin} ---")
     
+    # --- SPEED UPGRADE: Determine max CPU cores ---
+    cpu_count = os.cpu_count()
+    max_cores = str(max(1, cpu_count - 1)) if cpu_count else "1"
+    print(f"--- Parallelization Active: Utilizing {max_cores} CPU cores ---")
+    
+    # --- THE FIX: Write OpenSfM configuration directly to config.yaml ---
+    config_path = os.path.join(project_path, "config.yaml")
+    config_lines = []
+    if os.path.exists(config_path):
+        with open(config_path, 'r') as f:
+            config_lines = f.readlines()
+            
+    # Remove any existing 'processes:' line to prevent duplicates
+    config_lines = [line for line in config_lines if not line.strip().startswith("processes:")]
+    
+    # Inject our dynamic core count
+    config_lines.append(f"processes: {max_cores}\n")
+    
+    with open(config_path, 'w') as f:
+        f.writelines(config_lines)
+    
     # Phase 1: OpenSfM Pipeline via ODM Container
     steps = ["extract_metadata", "detect_features", "match_features", "create_tracks", "reconstruct", "undistort"]
     for step in steps:
         if step == "detect_features" and mrk_files: 
             inject_mrk_data(project_path, mrk_files)
         
+        # We removed the invalid --processes flag here
+        command_list = [step, project_path]
+        
         run_docker_command(
             image="opendronemap/odm:latest",
-            command_list=[step, project_path],
+            command_list=command_list,
             project_path=project_path,
             entrypoint=opensfm_bin
         )
@@ -203,15 +227,15 @@ def main(project_path):
             entrypoint=opensfm_bin
         )
         
+        # --- SPEED UPGRADE: Removed OMP_NUM_THREADS and OPENBLAS_NUM_THREADS limits ---
         linux_memory_hacks = [
-            "-e", "MALLOC_CHECK_=0",     
-            "-e", "OMP_NUM_THREADS=2",   
-            "-e", "OPENBLAS_NUM_THREADS=2"
+            "-e", "MALLOC_CHECK_=0"     
         ]
         
+        # Injected --max-threads 0 to allow OpenMVS to automatically use all available cores
         run_docker_command(
             image="opendronemap/odm:latest",
-            command_list=["--resolution-level", "2", "scene.mvs"],
+            command_list=["--resolution-level", "2", "--max-threads", "0", "scene.mvs"],
             project_path=project_path,
             work_dir_suffix="undistorted/openmvs",
             entrypoint=densify_bin,
@@ -225,8 +249,6 @@ def main(project_path):
     final_ply_path = os.path.join(project_path, 'scene_dense.ply')
     
     if os.path.exists(source_ply):
-        # We copy it up to the main folder so the downstream Open3D script is totally blind
-        # to whether we used a Mac or a Supercomputer. It just looks for scene_dense.ply!
         shutil.copy2(source_ply, final_ply_path)
         print(f"Pipeline Complete! Point cloud successfully extracted to: \n -> {final_ply_path}")
     else:

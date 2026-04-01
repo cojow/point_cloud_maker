@@ -11,6 +11,8 @@ from PIL import Image
 from PIL.ExifTags import GPSTAGS, TAGS
 from pyproj import Transformer
 from tqdm import tqdm
+import concurrent.futures
+
 
 # --- CONVENTIONS & SETTINGS ---
 EPSG_CODE = "EPSG:32612"  
@@ -25,7 +27,8 @@ def get_exif_gps(image_path):
     try:
         image = Image.open(image_path)
         exif = image._getexif()
-        if not exif: return None
+        if not exif: 
+            return None
 
         gps_info = {}
         for key, val in exif.items():
@@ -47,8 +50,10 @@ def get_exif_gps(image_path):
         lat = convert_to_degrees(gps_info['GPSLatitude'])
         lon = convert_to_degrees(gps_info['GPSLongitude'])
 
-        if gps_info['GPSLatitudeRef'] != 'N': lat = -lat
-        if gps_info['GPSLongitudeRef'] != 'E': lon = -lon
+        if gps_info['GPSLatitudeRef'] != 'N': 
+            lat = -lat
+        if gps_info['GPSLongitudeRef'] != 'E': 
+            lon = -lon
         
         return lat, lon
     except Exception:
@@ -98,7 +103,8 @@ def calculate_alpha_shape(points_2d, alpha):
         )
     
     final_simplices = tri.simplices[np.nan_to_num(circum_r) < alpha]
-    if len(final_simplices) == 0: return None
+    if len(final_simplices) == 0: 
+        return None
     
     hull_pts_3d = np.concatenate([points_2d, np.zeros((len(points_2d), 1))], axis=1)
     unique_indices = np.unique(final_simplices)
@@ -111,25 +117,26 @@ def calculate_alpha_shape(points_2d, alpha):
     voxel_grid = o3d.geometry.VoxelGrid.create_from_triangle_mesh(hull_mesh, voxel_size=0.3)
     return voxel_grid
 
-def apply_house_cookie_cutter(ag_pts, concave_voxel_grid, area_m2, avg_h):
-    min_bound = concave_voxel_grid.get_min_bound()
-    max_bound = concave_voxel_grid.get_max_bound()
-    
-    box_mask = (ag_pts[:, 0] >= min_bound[0]) & (ag_pts[:, 0] <= max_bound[0]) & \
-               (ag_pts[:, 1] >= min_bound[1]) & (ag_pts[:, 1] <= max_bound[1])
+def apply_house_cookie_cutter(ag_pts, concave_voxel_grid, mins, maxs):
+    # 1. Bounding box & initial footprint containment
+    box_mask = (ag_pts[:, 0] >= mins[0]) & (ag_pts[:, 0] <= maxs[0]) & \
+               (ag_pts[:, 1] >= mins[1]) & (ag_pts[:, 1] <= maxs[1])
     box_pts = ag_pts[box_mask]
     
-    if len(box_pts) == 0: return None
+    if len(box_pts) == 0: 
+        return None
     
     contain_mask = concave_voxel_grid.check_if_included(o3d.utility.Vector3dVector(box_pts * [1., 1., 0.]))
     final_house_pts = box_pts[contain_mask]
-    if len(final_house_pts) == 0: return None
+    if len(final_house_pts) == 0: 
+        return None
     
-    # Fix 1: Z-Clip for local ground removal
+    # 2. Z-Clip for local ground removal
     final_house_pts = final_house_pts[final_house_pts[:, 2] >= 0.3]
-    if len(final_house_pts) == 0: return None
+    if len(final_house_pts) == 0: 
+        return None
 
-    # Fix 2: Anisotropic DBSCAN to remove disconnected clutter
+    # 3. Anisotropic DBSCAN to remove disconnected 3D clutter
     squished_pts = np.copy(final_house_pts)
     squished_pts[:, 2] *= 0.1  
     
@@ -142,26 +149,192 @@ def apply_house_cookie_cutter(ag_pts, concave_voxel_grid, area_m2, avg_h):
         final_house_pts = final_house_pts[main_building_mask]
     else:
         return None
+
+    # --- RECALCULATE THE FOOTPRINT ---
+    final_points_2d = final_house_pts[:, :2]
+    final_footprint = calculate_alpha_shape(final_points_2d, alpha=0.6)
+    
+    if final_footprint is None: 
+        return None
+    
+    new_mins = final_footprint.get_min_bound()
+    new_maxs = final_footprint.get_max_bound()
     
     max_h = final_house_pts[:, 2].max()
     min_h = final_house_pts[:, 2].min()
     
     if max_h > 2.5 and (max_h - min_h) > 1.5:
-        pcd = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(final_house_pts))
-        volume_m3 = area_m2 * avg_h
-        return pcd, area_m2, volume_m3
+        # --- EXACT MATH (The Integral Approach) ---
+        grid_size = 0.6
+        cell_area = grid_size * grid_size  
+        total_volume = 0.0
+        
+        grid_points = [[x, y, 0.0] for x in np.arange(new_mins[0], new_maxs[0], grid_size) 
+                                   for y in np.arange(new_mins[1], new_maxs[1], grid_size)]
+        grid_pts_array = np.array(grid_points)
+        
+        floor_pcd = o3d.geometry.PointCloud()
+        exact_area_m2 = 0.0
+        
+        if len(grid_pts_array) > 0:
+            floor_mask = final_footprint.check_if_included(o3d.utility.Vector3dVector(grid_pts_array))
+            valid_floor = grid_pts_array[floor_mask]
+            
+            if len(valid_floor) > 0:
+                exact_area_m2 = len(valid_floor) * cell_area
+                
+                floor_pcd.points = o3d.utility.Vector3dVector(valid_floor)
+                floor_pcd.paint_uniform_color([0.5, 0.5, 0.5])
+                
+                global_avg_h = final_house_pts[:, 2].mean()
+                
+                for floor_pt in valid_floor:
+                    x, y, _ = floor_pt
+                    
+                    col_mask = (final_house_pts[:, 0] >= x) & (final_house_pts[:, 0] < x + grid_size) & \
+                               (final_house_pts[:, 1] >= y) & (final_house_pts[:, 1] < y + grid_size)
+                    
+                    local_roof_pts = final_house_pts[col_mask]
+                    
+                    if len(local_roof_pts) > 0:
+                        local_h = local_roof_pts[:, 2].mean()
+                        total_volume += (cell_area * local_h)
+                    else:
+                        total_volume += (cell_area * global_avg_h)
+
+        house_pcd = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(final_house_pts))
+        
+        return house_pcd + floor_pcd, exact_area_m2, total_volume
         
     return None
+
+def worker_process_cluster(args):
+    """
+    Standalone worker function executed by the ProcessPoolExecutor.
+    Processes a single broad cluster and extracts valid houses.
+    """
+    current_blob_roof_pts, local_ag_pts, original_offset_xy, image_catalog, debug_dir, images_out_dir = args
+    houses_found = []
+    
+    points_2d = current_blob_roof_pts[:, :2]
+    if len(points_2d) < 3: 
+        return houses_found
+    
+    voxel_footprint = calculate_alpha_shape(points_2d, alpha=0.6)
+    if voxel_footprint is None: 
+        return houses_found
+    
+    mins, maxs = voxel_footprint.get_min_bound(), voxel_footprint.get_max_bound()
+    area = (maxs[0] - mins[0]) * (maxs[1] - mins[1]) 
+
+    if area > 35:
+        if area > 350:
+            sub_squished_pts = np.copy(current_blob_roof_pts)
+            sub_squished_pts[:, 2] *= 0.1 
+            blob_squished = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(sub_squished_pts))
+            sub_labels = np.array(blob_squished.cluster_dbscan(eps=1.2, min_points=8))
+                        
+            sub_clusters = []
+            if sub_labels.max() >= 0:
+                for k in range(sub_labels.max() + 1):
+                    sub_idx = np.where(sub_labels == k)[0]
+                    sub_clusters.append(current_blob_roof_pts[sub_idx])
+            else:
+                sub_clusters = [current_blob_roof_pts]
+        else:
+            sub_clusters = [current_blob_roof_pts]
+
+        for sc_pts in sub_clusters:
+            valid_roof_pts = []
+            remaining_pts = sc_pts.copy()
+            
+            while len(remaining_pts) > 500:
+                pcd_temp = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(remaining_pts))
+                plane_model, inliers = pcd_temp.segment_plane(distance_threshold=0.15, ransac_n=3, num_iterations=250)
+                
+                if len(inliers) < 500: 
+                    break 
+                    
+                plane_pts = remaining_pts[inliers]
+                plane_pcd = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(plane_pts))
+                plane_labels = np.array(plane_pcd.cluster_dbscan(eps=0.5, min_points=15))
+                
+                if plane_labels.max() >= 0:
+                    largest_cluster_idx = np.bincount(plane_labels[plane_labels >= 0]).argmax()
+                    contiguous_inliers = np.where(plane_labels == largest_cluster_idx)[0]
+                    
+                    if len(contiguous_inliers) > 400:
+                        normal = np.array(plane_model[:3])
+                        normal = normal / np.linalg.norm(normal)
+                        if abs(normal[2]) > 0.5: 
+                            valid_roof_pts.append(plane_pts[contiguous_inliers])
+                
+                mask = np.ones(len(remaining_pts), dtype=bool)
+                mask[inliers] = False
+                remaining_pts = remaining_pts[mask]
+                
+            if len(valid_roof_pts) == 0:
+                continue 
+                
+            pure_roof_pts = np.vstack(valid_roof_pts)
+            sc_2d = pure_roof_pts[:, :2]
+            if len(sc_2d) < 3: 
+                continue
+            
+            sc_footprint = calculate_alpha_shape(sc_2d, alpha=0.6)
+            if sc_footprint is None: 
+                continue
+            
+            mins, maxs = sc_footprint.get_min_bound(), sc_footprint.get_max_bound()
+            
+            # Using the localized slice of ag_pts passed to this worker
+            result = apply_house_cookie_cutter(local_ag_pts, sc_footprint, mins, maxs)
+            
+            if result:
+                final_pcd_with_floor, area_m2, vol_m3 = result
+                
+                if area_m2 < 20: 
+                    continue
+                
+                centroid = np.mean(np.asarray(final_pcd_with_floor.points), axis=0)
+                
+                global_x = centroid[0] + original_offset_xy[0] + GLOBAL_PLY_OFFSET_X
+                global_y = centroid[1] + original_offset_xy[1] + GLOBAL_PLY_OFFSET_Y
+                unique_id = f"H_{abs(global_x):.5f}_{abs(global_y):.5f}".replace('.', 'd')
+                
+                best_image = None
+                if image_catalog:
+                    distances = [np.sqrt((global_x - img['x'])**2 + (global_y - img['y'])**2) for img in image_catalog]
+                    min_idx = np.argmin(distances)
+                    best_image = image_catalog[min_idx]['path']
+                    
+                    dest_img_path = os.path.join(images_out_dir, f"{unique_id}.jpg")
+                    shutil.copy2(best_image, dest_img_path)
+
+                o3d.io.write_point_cloud(os.path.join(debug_dir, f"{unique_id}.ply"), final_pcd_with_floor)
+                
+                area_sqft = area_m2 * 10.76391
+                vol_cuft = vol_m3 * 35.31467
+                
+                houses_found.append({
+                    "house_ID": unique_id, 
+                    "Area_sqft": round(area_sqft, 2), 
+                    "Volume_cuft": round(vol_cuft, 2),
+                    "Best_Image": best_image if best_image else "N/A"
+                })
+                
+    return houses_found
 
 def process_reconstruction_v22(ply_path, raw_images_dir=None):
     global_start_time = time.time()
     
-    output_dir = os.path.join(os.path.dirname(ply_path), "house_analysis_v22")
+    output_dir = os.path.join(os.path.dirname(ply_path), "house_analysis_v22_7")
     debug_dir = os.path.join(output_dir, "individual_houses")
     images_out_dir = os.path.join(output_dir, "best_images")
     
     for d in [output_dir, debug_dir, images_out_dir]:
-        if not os.path.exists(d): os.makedirs(d)
+        if not os.path.exists(d): 
+            os.makedirs(d)
 
     transformer = Transformer.from_crs("EPSG:4326", EPSG_CODE, always_xy=True)
     
@@ -188,7 +361,8 @@ def process_reconstruction_v22(ply_path, raw_images_dir=None):
     cov = np.cov(ground_pts.T)
     evals, evecs = np.linalg.eigh(cov)
     plane_norm = evecs[:, 0] 
-    if plane_norm[2] < 0: plane_norm = -plane_norm
+    if plane_norm[2] < 0: 
+        plane_norm = -plane_norm
 
     target_norm = np.array([0, 0, 1])
     v = np.cross(plane_norm, target_norm)
@@ -237,7 +411,7 @@ def process_reconstruction_v22(ply_path, raw_images_dir=None):
     real_roof_pts = np.asarray(roof_pcd.points)
     print(f"      Done in {time.time() - step_start:.2f}s")
     
-    print("[6/7] Broad clustering & Extraction...")
+    print("[6/7] Broad clustering & Parallel Extraction...")
     step_start = time.time()
     roof_pts_squished = np.copy(real_roof_pts)
     roof_pts_squished[:, 2] *= 0.1 
@@ -249,136 +423,44 @@ def process_reconstruction_v22(ply_path, raw_images_dir=None):
         print("      No clusters found. Exiting.")
         return
 
-    house_list = []
     num_clusters = labels.max() + 1
     
-    for i in tqdm(range(num_clusters), desc="      Extracting Buildings", unit="cluster"):
+    # --- PARALLELIZATION PREP ---
+    cluster_args = []
+    for i in range(num_clusters):
         broad_idx = np.where(labels == i)[0]
         current_blob_roof_pts = real_roof_pts[broad_idx]
         
-        points_2d = current_blob_roof_pts[:, :2]
-        if len(points_2d) < 3: continue
+        # Optimization: Slice ag_pts locally per cluster to avoid massive memory transfer between CPU cores
+        mins = current_blob_roof_pts.min(axis=0) - 5.0
+        maxs = current_blob_roof_pts.max(axis=0) + 5.0
         
-        voxel_footprint = calculate_alpha_shape(points_2d, alpha=0.6)
-        if voxel_footprint is None: continue
+        local_mask = (ag_pts[:, 0] >= mins[0]) & (ag_pts[:, 0] <= maxs[0]) & \
+                     (ag_pts[:, 1] >= mins[1]) & (ag_pts[:, 1] <= maxs[1])
+                     
+        local_ag_pts = ag_pts[local_mask]
         
-        mins, maxs = voxel_footprint.get_min_bound(), voxel_footprint.get_max_bound()
-        area = (maxs[0] - mins[0]) * (maxs[1] - mins[1]) 
+        cluster_args.append((
+            current_blob_roof_pts,
+            local_ag_pts,
+            original_offset_xy,
+            image_catalog,
+            debug_dir,
+            images_out_dir
+        ))
 
-        if area > 35:
-            if area > 350:
-                # Apply Z-squish to sub-clustering so attached lower roofs aren't split off
-                sub_squished_pts = np.copy(current_blob_roof_pts)
-                sub_squished_pts[:, 2] *= 0.1 
-                blob_squished = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(sub_squished_pts))
-                
-                # We can use a slightly tighter radius now that Z is compressed
-                sub_labels = np.array(blob_squished.cluster_dbscan(eps=1.2, min_points=8))
-                            
-                sub_clusters = []
-                if sub_labels.max() >= 0:
-                    for k in range(sub_labels.max() + 1):
-                        sub_idx = np.where(sub_labels == k)[0]
-                        sub_clusters.append(current_blob_roof_pts[sub_idx])
-                else:
-                    sub_clusters = [current_blob_roof_pts]
-            else:
-                sub_clusters = [current_blob_roof_pts]
-
-            for sc_pts in sub_clusters:
-                valid_roof_pts = []
-                remaining_pts = sc_pts.copy()
-                
-                # --- Restored: Massive Threshold Bump ---
-                while len(remaining_pts) > 500:
-                    pcd_temp = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(remaining_pts))
-                    plane_model, inliers = pcd_temp.segment_plane(distance_threshold=0.15, ransac_n=3, num_iterations=250)
-                    
-                    if len(inliers) < 500: 
-                        break 
-                        
-                    plane_pts = remaining_pts[inliers]
-                    plane_pcd = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(plane_pts))
-                    plane_labels = np.array(plane_pcd.cluster_dbscan(eps=0.5, min_points=15))
-                    
-                    if plane_labels.max() >= 0:
-                        largest_cluster_idx = np.bincount(plane_labels[plane_labels >= 0]).argmax()
-                        contiguous_inliers = np.where(plane_labels == largest_cluster_idx)[0]
-                        
-                        if len(contiguous_inliers) > 400:
-                            normal = np.array(plane_model[:3])
-                            normal = normal / np.linalg.norm(normal)
-                            if abs(normal[2]) > 0.5: 
-                                valid_roof_pts.append(plane_pts[contiguous_inliers])
-                    
-                    mask = np.ones(len(remaining_pts), dtype=bool)
-                    mask[inliers] = False
-                    remaining_pts = remaining_pts[mask]
-                    
-                if len(valid_roof_pts) == 0:
-                    continue 
-                    
-                pure_roof_pts = np.vstack(valid_roof_pts)
-                
-                sc_2d = pure_roof_pts[:, :2]
-                if len(sc_2d) < 3: continue
-                
-                sc_footprint = calculate_alpha_shape(sc_2d, alpha=0.6)
-                if sc_footprint is None: continue
-                
-                mins, maxs = sc_footprint.get_min_bound(), sc_footprint.get_max_bound()
-                sc_area = (maxs[0] - mins[0]) * (maxs[1] - mins[1])
-                avg_h = pure_roof_pts[:, 2].mean()
-                
-                if sc_area > 20:
-                    result = apply_house_cookie_cutter(ag_pts, sc_footprint, sc_area, avg_h)
-                    
-                    if result:
-                        final_pcd, area_m2, vol_m3 = result
-                        centroid = np.mean(final_pcd.points, axis=0)
-                        
-                        # Apply local + original + custom global offsets for correct image matching
-                        global_x = centroid[0] + original_offset_xy[0] + GLOBAL_PLY_OFFSET_X
-                        global_y = centroid[1] + original_offset_xy[1] + GLOBAL_PLY_OFFSET_Y
-                        unique_id = f"H_{abs(global_x):.5f}_{abs(global_y):.5f}".replace('.', 'd')
-                        
-                        # --- Restored: Synthetic Floor ---
-                        grid_points = [[x, y, 0.0] for x in np.arange(mins[0], maxs[0], 0.6) 
-                                       for y in np.arange(mins[1], maxs[1], 0.6)]
-                        
-                        floor_pcd = o3d.geometry.PointCloud()
-                        grid_pts_array = np.array(grid_points)
-                        
-                        if len(grid_pts_array) > 0:
-                            floor_mask = sc_footprint.check_if_included(o3d.utility.Vector3dVector(grid_pts_array))
-                            valid_floor = grid_pts_array[floor_mask]
-                            
-                            if len(valid_floor) > 0:
-                                floor_pcd.points = o3d.utility.Vector3dVector(valid_floor)
-                                floor_pcd.paint_uniform_color([0.5, 0.5, 0.5])
-                        
-                        # Match closest image using global coordinates
-                        best_image = None
-                        if image_catalog:
-                            distances = [np.sqrt((global_x - img['x'])**2 + (global_y - img['y'])**2) for img in image_catalog]
-                            min_idx = np.argmin(distances)
-                            best_image = image_catalog[min_idx]['path']
-                            
-                            dest_img_path = os.path.join(images_out_dir, f"{unique_id}.jpg")
-                            shutil.copy2(best_image, dest_img_path)
-
-                        o3d.io.write_point_cloud(os.path.join(debug_dir, f"{unique_id}.ply"), final_pcd + floor_pcd)
-                        
-                        # Imperial conversion just before appending to the final list
-                        area_sqft = area_m2 * 10.76391
-                        vol_cuft = vol_m3 * 35.31467
-                        
-                        house_list.append({
-                            "house_ID": unique_id, 
-                            "Area_sqft": round(area_sqft, 2), 
-                            "Volume_cuft": round(vol_cuft, 2),
-                            "Best_Image": best_image if best_image else "N/A"
-                        })
+    # --- MULTIPROCESSING EXECUTION ---
+    house_list = []
+    max_workers = os.cpu_count()
+    print(f"      Spinning up {max_workers} processes...")
+    
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+        results = list(tqdm(executor.map(worker_process_cluster, cluster_args), 
+                            total=len(cluster_args), 
+                            desc="      Extracting Buildings"))
+        
+    for res in results:
+        house_list.extend(res)
 
     print(f"      Done in {time.time() - step_start:.2f}s")
 
@@ -399,8 +481,13 @@ def process_reconstruction_v22(ply_path, raw_images_dir=None):
     print("="*40 + "\n")
 
 if __name__ == "__main__":
-    test_file = 'data/ElmA60H90P12/scene_dense.ply'
-    raw_images_directory = 'data/ElmA60H90P12/images' 
+    test_file = 'data/ElmA60H90P28/scene_dense.ply'
+    raw_images_directory = 'data/ElmA60H90P28/images' 
+     
+    '''
+
+    Run using python py/extract_buildings.py
+    '''
     
     if not os.path.exists(test_file):
         print("Error: Could not find the dense point cloud.")
