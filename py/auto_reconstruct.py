@@ -6,9 +6,11 @@ import re
 import sys
 import shutil
 import platform
+import time
 
 '''
  Run using python py/auto_reconstruct.py data/"""foldername"""
+ python py/auto_reconstruct.py data/ElmTestP5
 
 '''
 
@@ -153,6 +155,9 @@ def inject_mrk_data(project_path, mrk_files):
                     json.dump(data, f, indent=4)
 
 def main(project_path):
+    # --- Start Timer ---
+    global_start_time = time.time()
+    
     project_path = os.path.abspath(project_path)
     organize_folders(project_path)
     
@@ -226,6 +231,15 @@ def main(project_path):
         print(f"Pipeline Complete! Point cloud successfully extracted to: \n -> {final_ply_path}")
     else:
         print(f"Error: Expected point cloud not found at {source_ply}. Densification may have failed.")
+
+    # --- Stop Timer & Report ---
+    total_elapsed = time.time() - global_start_time
+    hours, remainder = divmod(total_elapsed, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    
+    print("-" * 40)
+    print(f"Total Processing Time: {int(hours):02d}h {int(minutes):02d}m {seconds:05.2f}s")
+    print("-" * 40)
 
 if __name__ == "__main__":
     if len(sys.argv) < 2: 

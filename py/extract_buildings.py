@@ -2,10 +2,76 @@ import numpy as np
 import open3d as o3d
 import os
 import csv
-from scipy.spatial import Delaunay, KDTree
 import sys
 import time
+import shutil
+import glob
+from scipy.spatial import Delaunay, KDTree
+from PIL import Image
+from PIL.ExifTags import GPSTAGS, TAGS
+from pyproj import Transformer
 from tqdm import tqdm
+
+# --- CONVENTIONS & SETTINGS ---
+EPSG_CODE = "EPSG:32612"  
+
+# If your PLY file has a 'Global Shift' (e.g. from CloudCompare or Pix4D), 
+# enter those large numbers here. If not, leave as 0.
+GLOBAL_PLY_OFFSET_X = 0 
+GLOBAL_PLY_OFFSET_Y = 0
+# ------------------------------
+
+def get_exif_gps(image_path):
+    try:
+        image = Image.open(image_path)
+        exif = image._getexif()
+        if not exif: return None
+
+        gps_info = {}
+        for key, val in exif.items():
+            tag = TAGS.get(key)
+            if tag == 'GPSInfo':
+                for t, v in val.items():
+                    gps_tag = GPSTAGS.get(t, t)
+                    gps_info[gps_tag] = v
+
+        if 'GPSLatitude' not in gps_info or 'GPSLongitude' not in gps_info:
+            return None
+
+        def convert_to_degrees(value):
+            d = float(value[0])
+            m = float(value[1])
+            s = float(value[2])
+            return d + (m / 60.0) + (s / 3600.0)
+
+        lat = convert_to_degrees(gps_info['GPSLatitude'])
+        lon = convert_to_degrees(gps_info['GPSLongitude'])
+
+        if gps_info['GPSLatitudeRef'] != 'N': lat = -lat
+        if gps_info['GPSLongitudeRef'] != 'E': lon = -lon
+        
+        return lat, lon
+    except Exception:
+        return None
+
+def build_image_catalog(image_dir, transformer):
+    catalog = []
+    if not image_dir or not os.path.exists(image_dir):
+        return catalog
+        
+    image_files = glob.glob(os.path.join(image_dir, "*.jpg")) + glob.glob(os.path.join(image_dir, "*.JPG"))
+    
+    for img_path in image_files:
+        coords = get_exif_gps(img_path)
+        if coords:
+            lat, lon = coords
+            x_proj, y_proj = transformer.transform(lat, lon)
+            catalog.append({
+                "path": img_path,
+                "x": x_proj,
+                "y": y_proj
+            })
+    return catalog
 
 def calculate_alpha_shape(points_2d, alpha):
     if len(points_2d) < 4:
@@ -23,7 +89,6 @@ def calculate_alpha_shape(points_2d, alpha):
     
     lengths = np.sqrt(np.sum((edges[:, :, 0, :] - edges[:, :, 1, :])**2, axis=2))
     
-    # Handle potential division by zero warnings cleanly
     with np.errstate(divide='ignore', invalid='ignore'):
         circum_r = lengths[0, :] * lengths[1, :] * lengths[2, :] / (
             np.sqrt((lengths[0, :] + lengths[1, :] + lengths[2, :]) *
@@ -50,26 +115,21 @@ def apply_house_cookie_cutter(ag_pts, concave_voxel_grid, area_m2, avg_h):
     min_bound = concave_voxel_grid.get_min_bound()
     max_bound = concave_voxel_grid.get_max_bound()
     
-    # 1. Bounding box filter
     box_mask = (ag_pts[:, 0] >= min_bound[0]) & (ag_pts[:, 0] <= max_bound[0]) & \
                (ag_pts[:, 1] >= min_bound[1]) & (ag_pts[:, 1] <= max_bound[1])
     box_pts = ag_pts[box_mask]
     
     if len(box_pts) == 0: return None
     
-    # 2. 2D Cookie Cutter (Alpha Shape containment)
     contain_mask = concave_voxel_grid.check_if_included(o3d.utility.Vector3dVector(box_pts * [1., 1., 0.]))
     final_house_pts = box_pts[contain_mask]
     if len(final_house_pts) == 0: return None
     
-    # --- FIX 1: The "Lawnmower" Z-Clip ---
-    # Universally ignore the bottom 0.3 meters to bypass uneven terrain variations.
+    # Fix 1: Z-Clip for local ground removal
     final_house_pts = final_house_pts[final_house_pts[:, 2] >= 0.3]
     if len(final_house_pts) == 0: return None
 
-    # --- FIX 2: Anisotropic DBSCAN (Z-Squish) ---
-    # Compress vertical gaps to connect floating roofs to foundations, 
-    # while maintaining horizontal gaps to isolate disconnected trees/clutter.
+    # Fix 2: Anisotropic DBSCAN to remove disconnected clutter
     squished_pts = np.copy(final_house_pts)
     squished_pts[:, 2] *= 0.1  
     
@@ -77,40 +137,45 @@ def apply_house_cookie_cutter(ag_pts, concave_voxel_grid, area_m2, avg_h):
     labels = np.array(pcd_temp.cluster_dbscan(eps=0.75, min_points=15))
     
     if labels.max() >= 0:
-        # Keep only the largest contiguous structure
         largest_cluster_idx = np.bincount(labels[labels >= 0]).argmax()
         main_building_mask = (labels == largest_cluster_idx)
-        
-        # Apply the mask back to the original, correctly scaled points
         final_house_pts = final_house_pts[main_building_mask]
     else:
         return None
     
-    # 3. Final Height Validation
     max_h = final_house_pts[:, 2].max()
     min_h = final_house_pts[:, 2].min()
     
     if max_h > 2.5 and (max_h - min_h) > 1.5:
         pcd = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(final_house_pts))
-        volume = area_m2 * avg_h
-        return pcd, round(area_m2, 2), round(volume, 2)
+        volume_m3 = area_m2 * avg_h
+        return pcd, area_m2, volume_m3
         
     return None
 
-def process_reconstruction_v22(ply_path):
+def process_reconstruction_v22(ply_path, raw_images_dir=None):
     global_start_time = time.time()
     
-    output_dir = os.path.join(os.path.dirname(ply_path), "house_analysis_v_23")
+    output_dir = os.path.join(os.path.dirname(ply_path), "house_analysis_v22")
     debug_dir = os.path.join(output_dir, "individual_houses")
-    for d in [output_dir, debug_dir]:
+    images_out_dir = os.path.join(output_dir, "best_images")
+    
+    for d in [output_dir, debug_dir, images_out_dir]:
         if not os.path.exists(d): os.makedirs(d)
+
+    transformer = Transformer.from_crs("EPSG:4326", EPSG_CODE, always_xy=True)
+    
+    print("[1/7] Building Image GPS Catalog...")
+    step_start = time.time()
+    image_catalog = build_image_catalog(raw_images_dir, transformer)
+    print(f"      Mapped {len(image_catalog)} images in {time.time() - step_start:.2f}s")
         
-    print(f"\n[1/6] Loading point cloud from {ply_path}...")
+    print(f"\n[2/7] Loading point cloud from {ply_path}...")
     step_start = time.time()
     pcd = o3d.io.read_point_cloud(ply_path)
     print(f"      Done in {time.time() - step_start:.2f}s")
 
-    print("[2/6] Cleaning statistical outliers and leveling via PCA...")
+    print("[3/7] Cleaning and leveling...")
     step_start = time.time()
     pcd, _ = pcd.remove_statistical_outlier(nb_neighbors=20, std_ratio=2.2)
     pts_clean = np.asarray(pcd.points)
@@ -141,10 +206,9 @@ def process_reconstruction_v22(ply_path):
     pcd.translate((-original_offset_xy[0], -original_offset_xy[1], 0))
     print(f"      Done in {time.time() - step_start:.2f}s")
 
-    print("[3/6] Applying RANSAC to drop the ground plane...")
+    print("[4/7] Applying RANSAC (Ground Removal)...")
     step_start = time.time()
     plane_model, inliers = pcd.segment_plane(distance_threshold=0.5, ransac_n=3, num_iterations=1000)
-    
     ground_pcd = pcd.select_by_index(inliers)
     ground_z = np.median(np.asarray(ground_pcd.points)[:, 2])
     
@@ -153,7 +217,7 @@ def process_reconstruction_v22(ply_path):
     ag_pts = np.asarray(above_ground_pcd.points)
     print(f"      Done in {time.time() - step_start:.2f}s")
 
-    print("[4/6] Isolating potential roofs...")
+    print("[5/7] Isolating potential roofs...")
     step_start = time.time()
     high_idx = np.where(ag_pts[:, 2] > 2.2)[0]
     high_pts = ag_pts[high_idx]
@@ -173,7 +237,7 @@ def process_reconstruction_v22(ply_path):
     real_roof_pts = np.asarray(roof_pcd.points)
     print(f"      Done in {time.time() - step_start:.2f}s")
     
-    print("[5/6] Performing broad clustering pass (Z-squish) & Extraction...")
+    print("[6/7] Broad clustering & Extraction...")
     step_start = time.time()
     roof_pts_squished = np.copy(real_roof_pts)
     roof_pts_squished[:, 2] *= 0.1 
@@ -203,9 +267,14 @@ def process_reconstruction_v22(ply_path):
 
         if area > 35:
             if area > 350:
-                blob_un_squished = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(current_blob_roof_pts))
-                sub_labels = np.array(blob_un_squished.cluster_dbscan(eps=1.6, min_points=8))
+                # Apply Z-squish to sub-clustering so attached lower roofs aren't split off
+                sub_squished_pts = np.copy(current_blob_roof_pts)
+                sub_squished_pts[:, 2] *= 0.1 
+                blob_squished = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(sub_squished_pts))
                 
+                # We can use a slightly tighter radius now that Z is compressed
+                sub_labels = np.array(blob_squished.cluster_dbscan(eps=1.2, min_points=8))
+                            
                 sub_clusters = []
                 if sub_labels.max() >= 0:
                     for k in range(sub_labels.max() + 1):
@@ -220,6 +289,7 @@ def process_reconstruction_v22(ply_path):
                 valid_roof_pts = []
                 remaining_pts = sc_pts.copy()
                 
+                # --- Restored: Massive Threshold Bump ---
                 while len(remaining_pts) > 500:
                     pcd_temp = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(remaining_pts))
                     plane_model, inliers = pcd_temp.segment_plane(distance_threshold=0.15, ransac_n=3, num_iterations=250)
@@ -228,7 +298,6 @@ def process_reconstruction_v22(ply_path):
                         break 
                         
                     plane_pts = remaining_pts[inliers]
-                    
                     plane_pcd = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(plane_pts))
                     plane_labels = np.array(plane_pcd.cluster_dbscan(eps=0.5, min_points=15))
                     
@@ -265,12 +334,15 @@ def process_reconstruction_v22(ply_path):
                     result = apply_house_cookie_cutter(ag_pts, sc_footprint, sc_area, avg_h)
                     
                     if result:
-                        final_pcd, area_meas, vol_meas = result
+                        final_pcd, area_m2, vol_m3 = result
                         centroid = np.mean(final_pcd.points, axis=0)
-                        global_x = centroid[0] + original_offset_xy[0]
-                        global_y = centroid[1] + original_offset_xy[1]
+                        
+                        # Apply local + original + custom global offsets for correct image matching
+                        global_x = centroid[0] + original_offset_xy[0] + GLOBAL_PLY_OFFSET_X
+                        global_y = centroid[1] + original_offset_xy[1] + GLOBAL_PLY_OFFSET_Y
                         unique_id = f"H_{abs(global_x):.5f}_{abs(global_y):.5f}".replace('.', 'd')
                         
+                        # --- Restored: Synthetic Floor ---
                         grid_points = [[x, y, 0.0] for x in np.arange(mins[0], maxs[0], 0.6) 
                                        for y in np.arange(mins[1], maxs[1], 0.6)]
                         
@@ -285,36 +357,53 @@ def process_reconstruction_v22(ply_path):
                                 floor_pcd.points = o3d.utility.Vector3dVector(valid_floor)
                                 floor_pcd.paint_uniform_color([0.5, 0.5, 0.5])
                         
+                        # Match closest image using global coordinates
+                        best_image = None
+                        if image_catalog:
+                            distances = [np.sqrt((global_x - img['x'])**2 + (global_y - img['y'])**2) for img in image_catalog]
+                            min_idx = np.argmin(distances)
+                            best_image = image_catalog[min_idx]['path']
+                            
+                            dest_img_path = os.path.join(images_out_dir, f"{unique_id}.jpg")
+                            shutil.copy2(best_image, dest_img_path)
+
                         o3d.io.write_point_cloud(os.path.join(debug_dir, f"{unique_id}.ply"), final_pcd + floor_pcd)
+                        
+                        # Imperial conversion just before appending to the final list
+                        area_sqft = area_m2 * 10.76391
+                        vol_cuft = vol_m3 * 35.31467
                         
                         house_list.append({
                             "house_ID": unique_id, 
-                            "Area_m2": area_meas, 
-                            "volume_m3": vol_meas
+                            "Area_sqft": round(area_sqft, 2), 
+                            "Volume_cuft": round(vol_cuft, 2),
+                            "Best_Image": best_image if best_image else "N/A"
                         })
 
     print(f"      Done in {time.time() - step_start:.2f}s")
 
-    print("[6/6] Finalizing CSV Output...")
+    print("[7/7] Finalizing CSV Output...")
     csv_path = os.path.join(output_dir, "house_measurements.csv")
     if house_list:
         with open(csv_path, 'w', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=["house_ID", "Area_m2", "volume_m3"])
+            writer = csv.DictWriter(f, fieldnames=["house_ID", "Area_sqft", "Volume_cuft", "Best_Image"])
             writer.writeheader()
             writer.writerows(house_list)
             
     total_elapsed = time.time() - global_start_time
     
     print("\n" + "="*40)
-    print("--- Top-Down Extraction Complete ---")
+    print("--- Extraction Complete ---")
     print(f"Total Processing Time:   {total_elapsed:.2f} seconds")
     print(f"Unique Buildings Found:  {len(house_list)}")
     print("="*40 + "\n")
 
 if __name__ == "__main__":
     test_file = 'data/ElmA60H90P12/scene_dense.ply'
+    raw_images_directory = 'data/ElmA60H90P12/images' 
+    
     if not os.path.exists(test_file):
         print("Error: Could not find the dense point cloud.")
         sys.exit(1)
         
-    process_reconstruction_v22(test_file)
+    process_reconstruction_v22(test_file, raw_images_directory)
