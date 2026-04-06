@@ -10,7 +10,7 @@ import time
 
 '''
  Run using python py/auto_reconstruct.py data/"""foldername"""
- python py/auto_reconstruct.py data/ElmA60H90P12
+ python py/auto_reconstruct.py data/560BLOCKA70H120
 
 '''
 
@@ -18,14 +18,23 @@ def is_mac():
     """Detects if the script is running on macOS (Apple Silicon/Intel)."""
     return platform.system().lower() == "darwin"
 
-def run_docker_command(image, command_list, project_path, work_dir_suffix="", entrypoint=None, extra_docker_args=None):
-    """Spins up a targeted Docker container for a specific task."""
-    work_dir = os.path.join(project_path, work_dir_suffix) if work_dir_suffix else project_path
+def run_docker_command(image, command_list, host_project_path, work_dir_suffix="", entrypoint=None, extra_docker_args=None):
+    """Spins up a targeted Docker container mapping the host path to a static internal Linux path."""
+    
+    # --- THE FIX: We map the complex Windows path to a simple, static Linux path inside the container ---
+    container_project_path = "/project"
+    
+    # Ensure internal paths use forward slashes for Linux, regardless of host OS
+    if work_dir_suffix:
+        safe_suffix = work_dir_suffix.replace("\\", "/")
+        internal_work_dir = f"{container_project_path}/{safe_suffix}"
+    else:
+        internal_work_dir = container_project_path
     
     docker_cmd = [
         "docker", "run", "-i", "--rm",
-        "-v", f"{project_path}:{project_path}",
-        "-w", work_dir
+        "-v", f"{host_project_path}:{container_project_path}", # Map Host (C:\...) to Container (/project)
+        "-w", internal_work_dir                                # Set working dir to Linux path
     ]
     
     if extra_docker_args:
@@ -155,7 +164,6 @@ def inject_mrk_data(project_path, mrk_files):
                     json.dump(data, f, indent=4)
 
 def main(project_path):
-    # --- Start Timer ---
     global_start_time = time.time()
     
     project_path = os.path.abspath(project_path)
@@ -167,22 +175,17 @@ def main(project_path):
     opensfm_bin = get_odm_opensfm_path()
     print(f"--- Located OpenSfM Engine at: {opensfm_bin} ---")
     
-    # --- SPEED UPGRADE: Determine max CPU cores ---
     cpu_count = os.cpu_count()
     max_cores = str(max(1, cpu_count - 1)) if cpu_count else "1"
     print(f"--- Parallelization Active: Utilizing {max_cores} CPU cores ---")
     
-    # --- THE FIX: Write OpenSfM configuration directly to config.yaml ---
     config_path = os.path.join(project_path, "config.yaml")
     config_lines = []
     if os.path.exists(config_path):
         with open(config_path, 'r') as f:
             config_lines = f.readlines()
             
-    # Remove any existing 'processes:' line to prevent duplicates
     config_lines = [line for line in config_lines if not line.strip().startswith("processes:")]
-    
-    # Inject our dynamic core count
     config_lines.append(f"processes: {max_cores}\n")
     
     with open(config_path, 'w') as f:
@@ -194,13 +197,13 @@ def main(project_path):
         if step == "detect_features" and mrk_files: 
             inject_mrk_data(project_path, mrk_files)
         
-        # We removed the invalid --processes flag here
-        command_list = [step, project_path]
+        # We now instruct OpenSfM to target the static "/project" mount inside the container
+        command_list = [step, "/project"]
         
         run_docker_command(
             image="opendronemap/odm:latest",
             command_list=command_list,
-            project_path=project_path,
+            host_project_path=project_path,
             entrypoint=opensfm_bin
         )
 
@@ -209,39 +212,35 @@ def main(project_path):
         print("\n--- Mac Detected: Running Safe OpenSfM Densification ---")
         run_docker_command(
             image="opendronemap/odm:latest",
-            command_list=["compute_depthmaps", project_path],
-            project_path=project_path,
+            command_list=["compute_depthmaps", "/project"],
+            host_project_path=project_path,
             entrypoint=opensfm_bin
         )
-        # Record where OpenSfM saves its dense cloud
         source_ply = os.path.join(project_path, 'undistorted', 'depthmaps', 'merged.ply')
         
     else:
-        print("\n--- Linux Detected: Running High-Performance OpenMVS Densification ---")
+        print("\n--- Linux/Windows Detected: Running High-Performance OpenMVS Densification ---")
         densify_bin = get_odm_openmvs_path()
         
         run_docker_command(
             image="opendronemap/odm:latest",
-            command_list=["export_openmvs", project_path],
-            project_path=project_path,
+            command_list=["export_openmvs", "/project"],
+            host_project_path=project_path,
             entrypoint=opensfm_bin
         )
         
-        # --- SPEED UPGRADE: Removed OMP_NUM_THREADS and OPENBLAS_NUM_THREADS limits ---
         linux_memory_hacks = [
             "-e", "MALLOC_CHECK_=0"     
         ]
         
-        # Injected --max-threads 0 to allow OpenMVS to automatically use all available cores
         run_docker_command(
             image="opendronemap/odm:latest",
             command_list=["--resolution-level", "2", "--max-threads", "0", "scene.mvs"],
-            project_path=project_path,
+            host_project_path=project_path,
             work_dir_suffix="undistorted/openmvs",
             entrypoint=densify_bin,
             extra_docker_args=linux_memory_hacks
         )
-        # Record where OpenMVS saves its dense cloud
         source_ply = os.path.join(project_path, 'undistorted', 'openmvs', 'scene_dense.ply')
 
     # --- THE NEW UNIFICATION STEP ---
