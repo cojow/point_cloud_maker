@@ -9,19 +9,26 @@ import platform
 import time
 
 '''
- Run using python py/auto_reconstruct.py data/"""foldername"""
- python py/auto_reconstruct.py data/560BLOCKA70H120
-
+ Run using: python auto_reconstruct.py data/900EBlock
+ 
+ Note for Linux/Supercomputer: 
+ Make sure 'odm.sif' is at the absolute path specified below.
+ Run: apptainer pull odm.sif docker://opendronemap/odm:latest
 '''
 
-def is_mac():
-    """Detects if the script is running on macOS (Apple Silicon/Intel)."""
-    return platform.system().lower() == "darwin"
+APPTAINER_IMAGE = "/home/willicon/point_cloud/odm.sif"
+DOCKER_IMAGE = "opendronemap/odm:latest"
 
-def run_docker_command(image, command_list, host_project_path, work_dir_suffix="", entrypoint=None, extra_docker_args=None):
-    """Spins up a targeted Docker container mapping the host path to a static internal Linux path."""
-    
-    # --- THE FIX: We map the complex Windows path to a simple, static Linux path inside the container ---
+def is_linux():
+    """Detects if the script is running on a Linux machine (like the supercomputer)."""
+    return platform.system().lower() == "linux"
+
+def get_engine():
+    """Determines which container engine to use based on the OS."""
+    return "apptainer" if is_linux() else "docker"
+
+def run_container_command(engine, command_list, host_project_path, work_dir_suffix="", entrypoint=None, env_vars=None):
+    """Spins up the appropriate container engine mapping the host path to a static internal Linux path."""
     container_project_path = "/project"
     
     # Ensure internal paths use forward slashes for Linux, regardless of host OS
@@ -30,63 +37,71 @@ def run_docker_command(image, command_list, host_project_path, work_dir_suffix="
         internal_work_dir = f"{container_project_path}/{safe_suffix}"
     else:
         internal_work_dir = container_project_path
-    
-    docker_cmd = [
-        "docker", "run", "-i", "--rm",
-        "-v", f"{host_project_path}:{container_project_path}", # Map Host (C:\...) to Container (/project)
-        "-w", internal_work_dir                                # Set working dir to Linux path
-    ]
-    
-    if extra_docker_args:
-        docker_cmd.extend(extra_docker_args)
+
+    if engine == "docker":
+        cmd = [
+            "docker", "run", "-i", "--rm",
+            "-v", f"{os.path.abspath(host_project_path)}:{container_project_path}",
+            "-w", internal_work_dir
+        ]
+        if env_vars:
+            for k, v in env_vars.items():
+                cmd.extend(["-e", f"{k}={v}"])
+        if entrypoint:
+            cmd.extend(["--entrypoint", entrypoint])
+            
+        cmd.append(DOCKER_IMAGE)
+        cmd.extend(command_list)
         
-    if entrypoint:
-        docker_cmd.extend(["--entrypoint", entrypoint])
+    elif engine == "apptainer":
+        cmd = [
+            "apptainer", "exec", 
+            "--cleanenv",
+            "--bind", f"{os.path.abspath(host_project_path)}:{container_project_path}", 
+            "--pwd", internal_work_dir
+        ]
+        if env_vars:
+            for k, v in env_vars.items():
+                cmd.extend(["--env", f"{k}={v}"])
+                
+        cmd.append(APPTAINER_IMAGE)
         
-    docker_cmd.append(image)
-    docker_cmd.extend(command_list)
-    
-    print(f"Executing Docker Engine [{image}]: {' '.join(docker_cmd)}")
-    result = subprocess.run(docker_cmd, capture_output=False, text=True)
+        if entrypoint:
+            cmd.append(entrypoint)
+            
+        cmd.extend(command_list)
+        
+    else:
+        print(f"Error: Unknown engine '{engine}'")
+        sys.exit(1)
+        
+    print(f"Executing {engine.capitalize()} Engine: {' '.join(cmd)}")
+    result = subprocess.run(cmd, capture_output=False, text=True)
     if result.returncode != 0:
-        print(f"Error executing Docker engine: {image}")
+        print(f"Error executing {engine} engine.")
         sys.exit(1)
 
-def get_odm_opensfm_path():
-    """Probes the ODM container for the OpenSfM executable."""
-    print("--- Probing ODM container for OpenSfM executable ---")
-    cmd = [
-        "docker", "run", "--rm", "--entrypoint", "sh", 
-        "opendronemap/odm:latest", "-c", 
-        "find /code /usr -name opensfm -type f 2>/dev/null | grep bin | head -n 1"
-    ]
+def get_binary_path(engine, binary_name, search_cmd):
+    """Probes the selected container engine for an executable."""
+    print(f"--- Probing {engine} container for {binary_name} executable ---")
+    
+    if engine == "docker":
+        cmd = ["docker", "run", "--rm", "--entrypoint", "sh", DOCKER_IMAGE, "-c", search_cmd]
+    else:
+        cmd = ["apptainer", "exec", APPTAINER_IMAGE, "sh", "-c", search_cmd]
+        
     try:
         output = subprocess.check_output(cmd, text=True).strip()
         if not output:
-            print("Error: Could not locate OpenSfM inside ODM container.")
+            print(f"Error: Could not locate {binary_name} inside container.")
             sys.exit(1)
         return output
     except Exception as e:
-        print(f"Error executing Docker probe: {e}")
+        print(f"Error executing container probe: {e}")
         sys.exit(1)
 
-def get_odm_openmvs_path():
-    """Probes the ODM container for the OpenMVS executable."""
-    print("--- Probing ODM container for OpenMVS executable ---")
-    cmd = [
-        "docker", "run", "--rm", "--entrypoint", "sh", 
-        "opendronemap/odm:latest", "-c", 
-        "find /code /usr -name DensifyPointCloud -type f 2>/dev/null | head -n 1"
-    ]
-    try:
-        output = subprocess.check_output(cmd, text=True).strip()
-        if not output:
-            print("Error: Could not locate DensifyPointCloud inside ODM container.")
-            sys.exit(1)
-        return output
-    except Exception as e:
-        print(f"Error executing Docker probe: {e}")
-        sys.exit(1)
+def get_odm_opensfm_path(engine):
+    return get_binary_path(engine, "OpenSfM", "find /code /usr -name opensfm -type f 2>/dev/null | grep bin | head -n 1")
 
 def organize_folders(project_path):
     images_dir = os.path.join(project_path, 'images')
@@ -166,18 +181,33 @@ def inject_mrk_data(project_path, mrk_files):
 def main(project_path):
     global_start_time = time.time()
     
+    engine = get_engine()
+    print(f"--- Detected OS: {platform.system()} | Selected Engine: {engine.upper()} ---")
+
+    if engine == "apptainer" and not os.path.exists(APPTAINER_IMAGE):
+        print(f"Error: Could not find '{APPTAINER_IMAGE}'.")
+        print("Run 'apptainer pull odm.sif docker://opendronemap/odm:latest' first.")
+        sys.exit(1)
+
     project_path = os.path.abspath(project_path)
     organize_folders(project_path)
     
     search_pattern = os.path.join(project_path, "*.MRK")
     mrk_files = [f for f in glob.glob(search_pattern) if os.path.isfile(f)]
     
-    opensfm_bin = get_odm_opensfm_path()
+    opensfm_bin = get_odm_opensfm_path(engine)
     print(f"--- Located OpenSfM Engine at: {opensfm_bin} ---")
     
-    cpu_count = os.cpu_count()
-    max_cores = str(max(1, cpu_count - 1)) if cpu_count else "1"
-    print(f"--- Parallelization Active: Utilizing {max_cores} CPU cores ---")
+    # --- DYNAMIC CORE DETECTION ---
+    slurm_cores = os.environ.get('SLURM_CPUS_PER_TASK')
+    
+    if slurm_cores and slurm_cores.isdigit():
+        max_cores = slurm_cores
+        print(f"--- SLURM Allocation Detected: Utilizing {max_cores} CPU cores ---")
+    else:
+        cpu_count = os.cpu_count()
+        max_cores = str(max(1, cpu_count - 1)) if cpu_count else "1"
+        print(f"--- Local Environment Detected: Utilizing {max_cores} CPU cores ---")
     
     config_path = os.path.join(project_path, "config.yaml")
     config_lines = []
@@ -191,59 +221,30 @@ def main(project_path):
     with open(config_path, 'w') as f:
         f.writelines(config_lines)
     
-    # Phase 1: OpenSfM Pipeline via ODM Container
+    # Phase 1: OpenSfM Pipeline
     steps = ["extract_metadata", "detect_features", "match_features", "create_tracks", "reconstruct", "undistort"]
     for step in steps:
         if step == "detect_features" and mrk_files: 
             inject_mrk_data(project_path, mrk_files)
         
-        # We now instruct OpenSfM to target the static "/project" mount inside the container
-        command_list = [step, "/project"]
-        
-        run_docker_command(
-            image="opendronemap/odm:latest",
-            command_list=command_list,
+        run_container_command(
+            engine=engine,
+            command_list=[step, "/project"],
             host_project_path=project_path,
             entrypoint=opensfm_bin
         )
 
-    # Phase 2 & 3: Environment-Aware Densification
-    if is_mac():
-        print("\n--- Mac Detected: Running Safe OpenSfM Densification ---")
-        run_docker_command(
-            image="opendronemap/odm:latest",
-            command_list=["compute_depthmaps", "/project"],
-            host_project_path=project_path,
-            entrypoint=opensfm_bin
-        )
-        source_ply = os.path.join(project_path, 'undistorted', 'depthmaps', 'merged.ply')
-        
-    else:
-        print("\n--- Linux/Windows Detected: Running High-Performance OpenMVS Densification ---")
-        densify_bin = get_odm_openmvs_path()
-        
-        run_docker_command(
-            image="opendronemap/odm:latest",
-            command_list=["export_openmvs", "/project"],
-            host_project_path=project_path,
-            entrypoint=opensfm_bin
-        )
-        
-        linux_memory_hacks = [
-            "-e", "MALLOC_CHECK_=0"     
-        ]
-        
-        run_docker_command(
-            image="opendronemap/odm:latest",
-            command_list=["--resolution-level", "2", "--max-threads", "0", "scene.mvs"],
-            host_project_path=project_path,
-            work_dir_suffix="undistorted/openmvs",
-            entrypoint=densify_bin,
-            extra_docker_args=linux_memory_hacks
-        )
-        source_ply = os.path.join(project_path, 'undistorted', 'openmvs', 'scene_dense.ply')
+    # Phase 2: Lightweight OpenSfM Densification (Universal)
+    print("\n--- Running Lightweight OpenSfM Densification ---")
+    run_container_command(
+        engine=engine,
+        command_list=["compute_depthmaps", "/project"],
+        host_project_path=project_path,
+        entrypoint=opensfm_bin
+    )
+    source_ply = os.path.join(project_path, 'undistorted', 'depthmaps', 'merged.ply')
 
-    # --- THE NEW UNIFICATION STEP ---
+    # Finalizing
     print("\n--- Finalizing Project Files ---")
     final_ply_path = os.path.join(project_path, 'scene_dense.ply')
     
@@ -253,7 +254,6 @@ def main(project_path):
     else:
         print(f"Error: Expected point cloud not found at {source_ply}. Densification may have failed.")
 
-    # --- Stop Timer & Report ---
     total_elapsed = time.time() - global_start_time
     hours, remainder = divmod(total_elapsed, 3600)
     minutes, seconds = divmod(remainder, 60)
@@ -264,6 +264,6 @@ def main(project_path):
 
 if __name__ == "__main__":
     if len(sys.argv) < 2: 
-        print("Usage: python py/auto_reconstruct.py <path>")
+        print("Usage: python auto_reconstruct.py <path>")
     else: 
         main(sys.argv[1])
