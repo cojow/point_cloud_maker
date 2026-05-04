@@ -15,7 +15,6 @@ import sys
 import time
 import shutil
 import glob
-import gc
 from scipy.spatial import Delaunay, KDTree
 from PIL import Image
 from PIL.ExifTags import GPSTAGS, TAGS
@@ -26,6 +25,19 @@ import concurrent.futures
 EPSG_CODE = "EPSG:32612"  
 GLOBAL_PLY_OFFSET_X = 0 
 GLOBAL_PLY_OFFSET_Y = 0
+
+def repair_openmvs_ply_colors(ply_path):
+    with open(ply_path, 'rb') as f: header_chunk = f.read(2000)
+    if b'diffuse_red' in header_chunk:
+        print("      -> [FIX] OpenMVS color tags detected. Patching binary header for Open3D compatibility...")
+        fixed_path = ply_path.replace('.ply', '_color_fixed.ply')
+        with open(ply_path, 'rb') as f: content = f.read()
+        content = content.replace(b'property uchar diffuse_red', b'property uchar red        ')
+        content = content.replace(b'property uchar diffuse_green', b'property uchar green      ')
+        content = content.replace(b'property uchar diffuse_blue', b'property uchar blue       ')
+        with open(fixed_path, 'wb') as f: f.write(content)
+        return fixed_path
+    return ply_path
 
 def get_exif_gps(image_path):
     try:
@@ -77,33 +89,47 @@ def calculate_alpha_shape(points_2d, alpha):
     hull_mesh = o3d.geometry.TriangleMesh(final_hull_pcd.points, o3d.utility.Vector3iVector(mapped_simplices))
     return o3d.geometry.VoxelGrid.create_from_triangle_mesh(hull_mesh, voxel_size=0.3)
 
-def apply_house_cookie_cutter(ag_pts, concave_voxel_grid, mins, maxs):
+def apply_house_cookie_cutter(ag_pts, ag_colors, concave_voxel_grid, mins, maxs):
     box_mask = (ag_pts[:, 0] >= mins[0]) & (ag_pts[:, 0] <= maxs[0]) & (ag_pts[:, 1] >= mins[1]) & (ag_pts[:, 1] <= maxs[1])
     box_pts = ag_pts[box_mask]
+    box_colors = ag_colors[box_mask]
+    
     if len(box_pts) == 0: return None
     contain_mask = concave_voxel_grid.check_if_included(o3d.utility.Vector3dVector(box_pts * [1., 1., 0.]))
+    
     final_house_pts = box_pts[contain_mask]
+    final_house_colors = box_colors[contain_mask]
+    
     if len(final_house_pts) == 0: return None
-    final_house_pts = final_house_pts[final_house_pts[:, 2] >= 0.15]
+    z_mask = final_house_pts[:, 2] >= 0.15
+    final_house_pts = final_house_pts[z_mask]
+    final_house_colors = final_house_colors[z_mask]
+    
     if len(final_house_pts) == 0: return None
     squished_pts = np.copy(final_house_pts)
     squished_pts[:, 2] *= 0.1  
-    labels = np.array(o3d.geometry.PointCloud(o3d.utility.Vector3dVector(squished_pts)).cluster_dbscan(eps=0.75, min_points=15))
+    
+    labels = DBSCAN(eps=0.75, min_samples=15, n_jobs=1).fit(squished_pts).labels_
     if labels.max() >= 0:
         valid_mask = np.zeros(len(final_house_pts), dtype=bool)
         for label_id in range(labels.max() + 1):
             cluster_mask = (labels == label_id)
-            if np.sum(cluster_mask) > 300: 
+            if np.sum(cluster_mask) > 100: 
                 cluster_pts = final_house_pts[cluster_mask]
                 if len(cluster_pts) > 0 and (cluster_pts[:, 2].max() - cluster_pts[:, 2].min()) > 1.5: 
                     valid_mask = valid_mask | cluster_mask
         final_house_pts = final_house_pts[valid_mask]
+        final_house_colors = final_house_colors[valid_mask]
     else: return None
+    
     if len(final_house_pts) == 0: return None
-    final_footprint = calculate_alpha_shape(final_house_pts[:, :2], alpha=0.6)
+    
+    # Relaxed footprint generation for large buildings
+    final_footprint = calculate_alpha_shape(final_house_pts[:, :2], alpha=1.2)
     if final_footprint is None: return None
     new_mins, new_maxs = final_footprint.get_min_bound(), final_footprint.get_max_bound()
     max_h, min_h = final_house_pts[:, 2].max(), final_house_pts[:, 2].min()
+    
     if max_h > 2.5 and (max_h - min_h) > 1.5:
         grid_size, cell_area = 0.6, 0.36
         total_volume = 0.0
@@ -111,6 +137,7 @@ def apply_house_cookie_cutter(ag_pts, concave_voxel_grid, mins, maxs):
         grid_pts_array = np.array(grid_points)
         floor_pcd = o3d.geometry.PointCloud()
         exact_area_m2 = 0.0
+        
         if len(grid_pts_array) > 0:
             floor_mask = final_footprint.check_if_included(o3d.utility.Vector3dVector(grid_pts_array))
             valid_floor = grid_pts_array[floor_mask]
@@ -124,42 +151,32 @@ def apply_house_cookie_cutter(ag_pts, concave_voxel_grid, mins, maxs):
                     col_mask = (final_house_pts[:, 0] >= x) & (final_house_pts[:, 0] < x + grid_size) & (final_house_pts[:, 1] >= y) & (final_house_pts[:, 1] < y + grid_size)
                     local_roof_pts = final_house_pts[col_mask]
                     total_volume += (cell_area * local_roof_pts[:, 2].mean()) if len(local_roof_pts) > 0 else (cell_area * global_avg_h)
+                    
         house_pcd = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(final_house_pts))
+        house_pcd.colors = o3d.utility.Vector3dVector(final_house_colors)
         return house_pcd + floor_pcd, exact_area_m2, total_volume
     return None
 
 def worker_process_cluster(args):
-    """Worker function with strictly bounded timestamps."""
-    # T1: Worker boots up and receives payload
     t_enter = time.time()
-    
-    cluster_idx, current_blob_roof_pts, local_ag_pts, original_offset_xy, ground_z, rotation_matrix, image_catalog, debug_dir, images_out_dir = args
+    cluster_idx, current_blob_roof_pts, local_ag_pts, local_ag_colors, original_offset_xy, ground_z, rotation_matrix, image_catalog, debug_dir, images_out_dir = args
     houses_found = []
     pts_count = len(current_blob_roof_pts)
     pid = os.getpid()
     
-    points_2d = current_blob_roof_pts[:, :2]
-    if len(points_2d) < 3: 
-        t_exit = time.time()
-        return houses_found, f"[PID:{pid}] Cluster {cluster_idx} ({pts_count} pts) -> Skipped (<3 pts)", t_enter, t_exit
+    if len(current_blob_roof_pts) < 3: 
+        return houses_found, f"[PID:{pid}] Cluster {cluster_idx} ({pts_count} pts) -> Skipped (<3 pts)", t_enter, time.time()
     
-    voxel_footprint = calculate_alpha_shape(points_2d, alpha=0.6)
-    if voxel_footprint is None: 
-        t_exit = time.time()
-        return houses_found, f"[PID:{pid}] Cluster {cluster_idx} ({pts_count} pts) -> Skipped (No footprint)", t_enter, t_exit
-    
-    mins, maxs = voxel_footprint.get_min_bound(), voxel_footprint.get_max_bound()
+    mins, maxs = current_blob_roof_pts.min(axis=0), current_blob_roof_pts.max(axis=0)
     area = (maxs[0] - mins[0]) * (maxs[1] - mins[1]) 
-
-    if area <= 35:
-        t_exit = time.time()
-        return houses_found, f"[PID:{pid}] Cluster {cluster_idx} ({pts_count} pts) -> Skipped (Area {area:.1f} < 35)", t_enter, t_exit
+    if area <= 20:
+        return houses_found, f"[PID:{pid}] Cluster {cluster_idx} ({pts_count} pts) -> Skipped (Area {area:.1f} < 20)", t_enter, time.time()
 
     sub_clusters = [current_blob_roof_pts]
     if area > 350:
         sub_squished_pts = np.copy(current_blob_roof_pts)
         sub_squished_pts[:, 2] *= 0.1 
-        sub_labels = np.array(o3d.geometry.PointCloud(o3d.utility.Vector3dVector(sub_squished_pts)).cluster_dbscan(eps=1.2, min_points=8))
+        sub_labels = DBSCAN(eps=1.2, min_samples=8, n_jobs=1).fit(sub_squished_pts).labels_
         if sub_labels.max() >= 0:
             sub_clusters = [current_blob_roof_pts[np.where(sub_labels == k)[0]] for k in range(sub_labels.max() + 1)]
 
@@ -167,67 +184,79 @@ def worker_process_cluster(args):
         valid_roof_pts = []
         remaining_pts = sc_pts.copy()
         
-        while len(remaining_pts) > 500:
+        # 1. RANSAC EXTRACTION: Increased thickness to 0.25m to handle commercial roofs
+        while len(remaining_pts) > 100:
             pcd_temp = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(remaining_pts))
-            plane_model, inliers = pcd_temp.segment_plane(distance_threshold=0.15, ransac_n=3, num_iterations=250)
-            if len(inliers) < 500: break 
+            plane_model, inliers = pcd_temp.segment_plane(distance_threshold=0.25, ransac_n=3, num_iterations=250)
+            
+            if len(inliers) < 100: break 
+            
             plane_pts = remaining_pts[inliers]
-            plane_labels = np.array(o3d.geometry.PointCloud(o3d.utility.Vector3dVector(plane_pts)).cluster_dbscan(eps=0.5, min_points=15))
+            # Increased contiguity check to 1.5m so AC units don't shatter the roof
+            plane_labels = DBSCAN(eps=1.5, min_samples=10, n_jobs=1).fit(plane_pts).labels_
             if plane_labels.max() >= 0:
                 largest_cluster_idx = np.bincount(plane_labels[plane_labels >= 0]).argmax()
                 contiguous_inliers = np.where(plane_labels == largest_cluster_idx)[0]
-                if len(contiguous_inliers) > 400:
+                
+                if len(contiguous_inliers) > 75:
                     normal = np.array(plane_model[:3])
                     normal = normal / np.linalg.norm(normal)
-                    if abs(normal[2]) > 0.5: valid_roof_pts.append(plane_pts[contiguous_inliers])
+                    if abs(normal[2]) > 0.3: 
+                        valid_roof_pts.append(plane_pts[contiguous_inliers])
+                        
             mask = np.ones(len(remaining_pts), dtype=bool)
             mask[inliers] = False
             remaining_pts = remaining_pts[mask]
             
         if len(valid_roof_pts) == 0: continue 
         pure_roof_pts = np.vstack(valid_roof_pts)
-        sc_2d = pure_roof_pts[:, :2]
-        if len(sc_2d) < 3: continue
-        sc_footprint = calculate_alpha_shape(sc_2d, alpha=0.6)
-        if sc_footprint is None: continue
         
-        mins, maxs = sc_footprint.get_min_bound(), sc_footprint.get_max_bound()
-        sc_area = (maxs[0] - mins[0]) * (maxs[1] - mins[1])
+        # 2. POST-RANSAC SPLITTER: This separates houses that were previously bridged by trees
+        roof_2d = pure_roof_pts[:, :2]
+        building_labels = DBSCAN(eps=2.0, min_samples=10, n_jobs=1).fit(roof_2d).labels_
         
-        if 20 < sc_area < 2500:
-            result = apply_house_cookie_cutter(local_ag_pts, sc_footprint, mins, maxs)
-            if result:
-                final_pcd_with_floor, area_m2, vol_m3 = result
-                if area_m2 >= 20: 
-                    final_pcd_with_floor.translate((0, 0, ground_z))
-                    final_pcd_with_floor.translate((original_offset_xy[0], original_offset_xy[1], 0))
-                    final_pcd_with_floor.rotate(rotation_matrix.T, center=(0, 0, 0))
-                    centroid = np.mean(np.asarray(final_pcd_with_floor.points), axis=0)
-                    global_x, global_y = centroid[0] + GLOBAL_PLY_OFFSET_X, centroid[1] + GLOBAL_PLY_OFFSET_Y
-                    unique_id = f"H_{abs(global_x):.5f}_{abs(global_y):.5f}".replace('.', 'd')
-                    best_image = None
-                    if image_catalog:
-                        distances = [np.sqrt((global_x - img['x'])**2 + (global_y - img['y'])**2) for img in image_catalog]
-                        best_image = image_catalog[np.argmin(distances)]['path']
-                        shutil.copy2(best_image, os.path.join(images_out_dir, f"{unique_id}.jpg"))
-                    o3d.io.write_point_cloud(os.path.join(debug_dir, f"{unique_id}.ply"), final_pcd_with_floor)
-                    houses_found.append({"house_ID": unique_id, "Area_sqft": round(area_m2 * 10.76391, 2), "Volume_cuft": round(vol_m3 * 35.31467, 2), "Best_Image": best_image if best_image else "N/A"})
+        for b_id in range(building_labels.max() + 1):
+            b_pts = pure_roof_pts[building_labels == b_id]
+            if len(b_pts) < 75: continue
+            
+            # Relaxed footprint to 1.2 to gracefully wrap complex or hole-punched commercial roofs
+            sc_footprint = calculate_alpha_shape(b_pts[:, :2], alpha=1.2)
+            if sc_footprint is None: continue
+            
+            b_mins, b_maxs = sc_footprint.get_min_bound(), sc_footprint.get_max_bound()
+            sc_area = (b_maxs[0] - b_mins[0]) * (b_maxs[1] - b_mins[1])
+            
+            if 20 < sc_area < 5000: # Increased upper bound for large commercial
+                result = apply_house_cookie_cutter(local_ag_pts, local_ag_colors, sc_footprint, b_mins, b_maxs)
+                if result:
+                    final_pcd_with_floor, area_m2, vol_m3 = result
+                    if area_m2 >= 20: 
+                        final_pcd_with_floor.translate((0, 0, ground_z))
+                        final_pcd_with_floor.translate((original_offset_xy[0], original_offset_xy[1], 0))
+                        final_pcd_with_floor.rotate(rotation_matrix.T, center=(0, 0, 0))
+                        centroid = np.mean(np.asarray(final_pcd_with_floor.points), axis=0)
+                        global_x, global_y = centroid[0] + GLOBAL_PLY_OFFSET_X, centroid[1] + GLOBAL_PLY_OFFSET_Y
+                        unique_id = f"H_{abs(global_x):.5f}_{abs(global_y):.5f}".replace('.', 'd')
+                        best_image = None
+                        if image_catalog:
+                            distances = [np.sqrt((global_x - img['x'])**2 + (global_y - img['y'])**2) for img in image_catalog]
+                            best_image = image_catalog[np.argmin(distances)]['path']
+                            shutil.copy2(best_image, os.path.join(images_out_dir, f"{unique_id}.jpg"))
+                        o3d.io.write_point_cloud(os.path.join(debug_dir, f"{unique_id}.ply"), final_pcd_with_floor)
+                        houses_found.append({"house_ID": unique_id, "Area_sqft": round(area_m2 * 10.76391, 2), "Volume_cuft": round(vol_m3 * 35.31467, 2), "Best_Image": best_image if best_image else "N/A"})
     
-    # T2: Math is fully complete
     t_exit = time.time()
     profile_str = f"[PID:{pid}] Cluster {cluster_idx:>2} | Pts: {pts_count:>6} | Found: {len(houses_found)} | Math: {t_exit - t_enter:>5.2f}s"
-    
     return houses_found, profile_str, t_enter, t_exit
 
 def process_reconstruction_v22(ply_path, raw_images_dir=None):
     global_start_time = time.time()
-    
-    output_dir = os.path.join(os.path.dirname(ply_path), "house_analysis_v22_7")
+    output_dir = os.path.join(os.path.dirname(ply_path), "house_analysis_v23_2")
     debug_dir, images_out_dir = os.path.join(output_dir, "individual_houses"), os.path.join(output_dir, "best_images")
-    for d in [output_dir, debug_dir, images_out_dir]: os.makedirs(d, exist_ok=True)
+    diag_dir = os.path.join(output_dir, "diagnostic_steps")
+    for d in [output_dir, debug_dir, images_out_dir, diag_dir]: os.makedirs(d, exist_ok=True)
 
     transformer = Transformer.from_crs("EPSG:4326", EPSG_CODE, always_xy=True)
-    
     print("[1/7] Building Image GPS Catalog...")
     t0 = time.time()
     image_catalog = build_image_catalog(raw_images_dir, transformer)
@@ -235,8 +264,15 @@ def process_reconstruction_v22(ply_path, raw_images_dir=None):
         
     print(f"\n[2/7] Loading point cloud from {ply_path}...")
     t0 = time.time()
-    pcd = o3d.io.read_point_cloud(ply_path)
+    safe_ply_path = repair_openmvs_ply_colors(ply_path)
+    pcd = o3d.io.read_point_cloud(safe_ply_path)
+    
+    print(f"      -> Initial points: {len(pcd.points)}")
+    if pcd.has_colors(): print("      -> RGB Color Payload: Successfully Loaded")
+    else: print("      -> RGB Color Payload: NOT FOUND (Proceeding without colors)")
+        
     pcd = pcd.voxel_down_sample(voxel_size=0.05)
+    print(f"      -> Points after downsample: {len(pcd.points)}")
     print(f"      Done in {time.time() - t0:.2f}s")
 
     print("[3/7] Cleaning and leveling...")
@@ -260,6 +296,7 @@ def process_reconstruction_v22(ply_path, raw_images_dir=None):
     original_offset_xy = centroid[:2]
     pcd.translate((-original_offset_xy[0], -original_offset_xy[1], 0))
     print(f"      Done in {time.time() - t0:.2f}s")
+    o3d.io.write_point_cloud(os.path.join(diag_dir, "step3_leveled.ply"), pcd)
 
     print("[4/7] Applying RANSAC (Ground Removal)...")
     t0 = time.time()
@@ -268,91 +305,90 @@ def process_reconstruction_v22(ply_path, raw_images_dir=None):
     above_ground_pcd = pcd.select_by_index(inliers, invert=True)
     above_ground_pcd.translate((0, 0, -ground_z))
     ag_pts = np.asarray(above_ground_pcd.points)
+    ag_colors = np.asarray(above_ground_pcd.colors) 
+    print(f"      -> Points surviving ground cut: {len(ag_pts)}")
     print(f"      Done in {time.time() - t0:.2f}s")
+    o3d.io.write_point_cloud(os.path.join(diag_dir, "step4_above_ground.ply"), above_ground_pcd)
 
     print("[5/7] Isolating potential roofs...")
     t0 = time.time()
     high_idx = np.where(ag_pts[:, 2] > 2.2)[0]
     high_pts = ag_pts[high_idx]
+    print(f"      -> Points > 2.2m: {len(high_pts)}")
+    
     if len(high_pts) < 10: return print("      Insufficient high points. Exiting.")
     _, neighbor_indices = KDTree(high_pts).query(high_pts, k=10) 
     planar_mask = np.std(high_pts[neighbor_indices][:, :, 2], axis=1) < 0.20
     roof_pcd = above_ground_pcd.select_by_index(high_idx[planar_mask])
     real_roof_pts = np.asarray(roof_pcd.points)
+    print(f"      -> Points surviving planar check (<0.20 stdev): {len(real_roof_pts)}")
     print(f"      Done in {time.time() - t0:.2f}s")
+    o3d.io.write_point_cloud(os.path.join(diag_dir, "step5_potential_roofs.ply"), roof_pcd)
     
     print("[6/7] Broad clustering & Parallel Extraction (TIMELINE TRACER)...")
     step_start = time.time()
-    roof_pts_squished = np.copy(real_roof_pts)
-    roof_pts_squished[:, 2] *= 0.1 
-    
-    # Establish max workers early so sklearn can use them
     slurm_cores = os.environ.get('SLURM_CPUS_PER_TASK')
     max_workers = int(slurm_cores) if slurm_cores and slurm_cores.isdigit() else min(6, os.cpu_count() or 1)
     
+    roof_pts_squished = np.copy(real_roof_pts)
+    roof_pts_squished[:, 2] *= 0.1 
+    
     print(f"      -> Running global DBScan using {max_workers} threads...")
     t_db_start = time.time()
-    
-    # Use scikit-learn's DBSCAN. By passing n_jobs=max_workers, it bypasses the 
-    # OpenMP 1-thread limit and utilizes all your SLURM cores for this massive step.
-    # Note: sklearn uses 'min_samples' instead of Open3D's 'min_points'
     db = DBSCAN(eps=2.5, min_samples=15, n_jobs=max_workers).fit(roof_pts_squished)
     labels = db.labels_
-    
     print(f"      -> Global DBScan finished in {time.time() - t_db_start:.2f}s")
     
     if labels.size == 0 or labels.max() < 0: return print("      No clusters found. Exiting.")
 
+    clustered_pcd = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(real_roof_pts))
+    max_label = labels.max()
+    colors = np.random.rand(max_label + 1, 3) 
+    color_array = np.zeros((len(labels), 3))
+    for i in range(len(labels)):
+        if labels[i] >= 0: color_array[i] = colors[labels[i]]
+        else: color_array[i] = [0.1, 0.1, 0.1]
+    clustered_pcd.colors = o3d.utility.Vector3dVector(color_array)
+    o3d.io.write_point_cloud(os.path.join(diag_dir, "step6_broad_clusters.ply"), clustered_pcd)
+
     cluster_args = []
     for i in range(labels.max() + 1):
-        current_blob = real_roof_pts[np.where(labels == i)[0]]
+        broad_idx = np.where(labels == i)[0]
+        if len(broad_idx) < 100: continue 
+            
+        current_blob = real_roof_pts[broad_idx]
         mins, maxs = current_blob.min(axis=0) - 5.0, current_blob.max(axis=0) + 5.0
         local_mask = (ag_pts[:, 0] >= mins[0]) & (ag_pts[:, 0] <= maxs[0]) & (ag_pts[:, 1] >= mins[1]) & (ag_pts[:, 1] <= maxs[1])
-        cluster_args.append((i, current_blob, ag_pts[local_mask], original_offset_xy, ground_z, rotation_matrix, image_catalog, debug_dir, images_out_dir))
+        local_ag_colors = ag_colors[local_mask] 
+        cluster_args.append((i, current_blob, ag_pts[local_mask], local_ag_colors, original_offset_xy, ground_z, rotation_matrix, image_catalog, debug_dir, images_out_dir))
 
     house_list = []
     slurm_cores = os.environ.get('SLURM_CPUS_PER_TASK')
-    max_workers = int(slurm_cores) if slurm_cores and slurm_cores.isdigit() else min(6, os.cpu_count() or 1)
+    max_workers = int(slurm_cores) if slurm_cores and slurm_cores.isdigit() else min(3, os.cpu_count() or 1)
     
     print(f"\n      -> Initiating ProcessPoolExecutor with {max_workers} workers.")
     print(f"      -> Total Clusters to evaluate: {len(cluster_args)}\n")
 
-    # --- THE MICROSCOPIC TRACER ---
     with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
         t_submit_start = time.time()
-        
-        # T0: Submitting to pipe
-        future_to_idx = {}
-        for arg in cluster_args:
-            future = executor.submit(worker_process_cluster, arg)
-            future_to_idx[future] = arg[0]
-            
+        future_to_idx = {executor.submit(worker_process_cluster, arg): arg[0] for arg in cluster_args}
         t_submit_end = time.time()
         print(f"      [SYSTEM] Pipeline serialization (pickling) took: {t_submit_end - t_submit_start:.2f}s")
 
         last_received_time = t_submit_end
-
         for future in concurrent.futures.as_completed(future_to_idx):
-            # T3: Main thread receives the package
             t_received = time.time()
             cluster_idx = future_to_idx[future]
             try:
                 houses, profile_str, t_enter, t_exit = future.result()
                 if houses: house_list.extend(houses)
-                
-                dispatch_lag = t_enter - t_submit_end
-                math_duration = t_exit - t_enter
-                return_lag = t_received - t_exit
-                
-                print(f"      {profile_str}")
-                print(f"         > Dispatch Lag: {dispatch_lag:>5.2f}s | Math: {math_duration:>5.2f}s | Return Lag: {return_lag:>5.2f}s")
+                dispatch_lag, math_duration, return_lag = t_enter - t_submit_end, t_exit - t_enter, t_received - t_exit
+                print(f"      {profile_str}\n         > Dispatch Lag: {dispatch_lag:>5.2f}s | Math: {math_duration:>5.2f}s | Return Lag: {return_lag:>5.2f}s")
                 last_received_time = t_received
             except Exception as e:
                 print(f"\n      [WARNING] Cluster {cluster_idx} failed with error: {e}")
 
-    # T4: Pool officially closed
-    t_pool_closed = time.time()
-    teardown_time = t_pool_closed - last_received_time
+    teardown_time = time.time() - last_received_time
     print(f"\n      [SYSTEM] Pool Teardown (Garbage Collection) took: {teardown_time:.2f}s")
     print(f"      Done in {time.time() - step_start:.2f}s")
 
@@ -371,12 +407,8 @@ def process_reconstruction_v22(ply_path, raw_images_dir=None):
     print("="*40 + "\n")
 
 if __name__ == "__main__":
-    
-    if len(sys.argv) < 2:
-        sys.exit(1)
-        
+    if len(sys.argv) < 2: sys.exit(1)
     project_dir = os.path.abspath(sys.argv[1])
     test_file, raw_images_directory = os.path.join(project_dir, 'scene_dense.ply'), os.path.join(project_dir, 'images')
     if not os.path.exists(test_file): sys.exit(1)
-        
     process_reconstruction_v22(test_file, raw_images_directory)
