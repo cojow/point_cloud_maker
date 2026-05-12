@@ -15,7 +15,6 @@ from pyproj import Transformer
 import concurrent.futures
 
 # --- SYSTEM CONFIGURATION ---
-# Optimize thread management for HPC environments
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
@@ -25,13 +24,11 @@ os.environ["NUMEXPR_NUM_THREADS"] = "1"
 EPSG_CODE = "EPSG:32612"  # Utah UTM Zone 12N
 NUM_CORES = os.cpu_count() or 1
 
-# --- 1. UTILITY & IMAGE HELPERS ---
+# --- 1. AUTOMATION & REPAIR HELPERS ---
 
 def auto_detect_offsets(project_dir):
-    """Pulls the UTM anchor from OpenSfM reconstruction.json."""
     json_path = os.path.join(project_dir, 'reconstruction.json')
     if not os.path.exists(json_path):
-        print("      [!] Warning: reconstruction.json not found. Using (0,0).")
         return 0.0, 0.0
     try:
         with open(json_path, 'r') as f:
@@ -43,7 +40,6 @@ def auto_detect_offsets(project_dir):
         return 0.0, 0.0
 
 def build_spatial_image_index(image_dir, transformer):
-    """Builds a spatial KDTree for near-instant closest-image lookup."""
     paths, coords = [], []
     if not image_dir or not os.path.exists(image_dir): return None, None
     files = glob.glob(os.path.join(image_dir, "*.jpg")) + glob.glob(os.path.join(image_dir, "*.JPG"))
@@ -68,7 +64,6 @@ def build_spatial_image_index(image_dir, transformer):
 def repair_openmvs_ply_colors(ply_path):
     with open(ply_path, 'rb') as f: header_chunk = f.read(2000)
     if b'diffuse_red' in header_chunk:
-        print("      -> [FIX] Patching OpenMVS header color tags...")
         fixed_path = ply_path.replace('.ply', '_color_fixed.ply')
         with open(ply_path, 'rb') as f: content = f.read()
         content = content.replace(b'property uchar diffuse_red', b'property uchar red        ')
@@ -78,10 +73,9 @@ def repair_openmvs_ply_colors(ply_path):
         return fixed_path
     return ply_path
 
-# --- 2. EXTRACTION HELPERS ---
+# --- 2. GEOMETRY & EXTRACTION HELPERS ---
 
 def calculate_alpha_shape(points_2d, alpha=1.2):
-    """Generates a concave 2D footprint (Alpha-Shape)."""
     if len(points_2d) < 4: return None
     try:
         tri = Delaunay(points_2d)
@@ -95,45 +89,48 @@ def calculate_alpha_shape(points_2d, alpha=1.2):
         return o3d.geometry.VoxelGrid.create_from_triangle_mesh(mesh, voxel_size=0.3)
     except: return None
 
-def apply_house_cookie_cutter(ag_pts, ag_colors, footprint):
-    """Extracts points inside the footprint and calculates measurements."""
-    contain = footprint.check_if_included(o3d.utility.Vector3dVector(ag_pts * [1., 1., 0.]))
+def apply_house_cookie_cutter(ag_pts, ag_colors, voxel_grid):
+    contain = voxel_grid.check_if_included(o3d.utility.Vector3dVector(ag_pts * [1., 1., 0.]))
     f_pts, f_cols = ag_pts[contain], ag_colors[contain]
     if len(f_pts) < 100: return None
     
-    # 3D Squished DBSCAN to remove floating noise
-    sq = np.copy(f_pts); sq[:, 2] *= 0.1
-    l = DBSCAN(eps=0.8, min_samples=15).fit(sq).labels_
-    if l.max() < 0: return None
-    best_l = np.bincount(l[l >= 0]).argmax()
-    f_pts, f_cols = f_pts[l == best_l], f_cols[l == best_l]
-
-    # Area/Volume math
-    mins, maxs = footprint.get_min_bound(), footprint.get_max_bound()
-    grid_res, cell_a = 0.6, 0.36
+    mins, maxs = voxel_grid.get_min_bound(), voxel_grid.get_max_bound()
+    res, cell_a = 0.6, 0.36
     vol, area = 0.0, 0.0
-    grid = np.array([[x, y, 0.] for x in np.arange(mins[0], maxs[0], grid_res) for y in np.arange(mins[1], maxs[1], grid_res)])
+    grid = np.array([[x, y, 0.] for x in np.arange(mins[0], maxs[0], res) for y in np.arange(mins[1], maxs[1], res)])
+    
     if len(grid) > 0:
-        f_mask = footprint.check_if_included(o3d.utility.Vector3dVector(grid))
+        f_mask = voxel_grid.check_if_included(o3d.utility.Vector3dVector(grid))
         valid_grid = grid[f_mask]
         area = len(valid_grid) * cell_a
         avg_h = f_pts[:, 2].mean()
         for g_pt in valid_grid:
-            col_m = (f_pts[:, 0] >= g_pt[0]) & (f_pts[:, 0] < g_pt[0]+grid_res) & (f_pts[:, 1] >= g_pt[1]) & (f_pts[:, 1] < g_pt[1]+grid_res)
+            col_m = (f_pts[:, 0] >= g_pt[0]) & (f_pts[:, 0] < g_pt[0]+res) & (f_pts[:, 1] >= g_pt[1]) & (f_pts[:, 1] < g_pt[1]+res)
             vol += (cell_a * f_pts[col_m, 2].mean()) if np.any(col_m) else (cell_a * avg_h)
 
-    pcd = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(f_pts))
-    pcd.colors = o3d.utility.Vector3dVector(f_cols)
+        # --- RESTORE SYNTHETIC FLOOR ---
+        floor_pts = valid_grid.copy()
+        floor_cols = np.full((len(floor_pts), 3), [0.4, 0.4, 0.4]) # Gray
+        combined_pts = np.vstack([f_pts, floor_pts])
+        combined_cols = np.vstack([f_cols, floor_cols])
+    else:
+        return None
+
+    pcd = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(combined_pts))
+    pcd.colors = o3d.utility.Vector3dVector(combined_cols)
     return pcd, area, vol
 
 # --- 3. PARALLEL WORKER ---
 
 def worker_extraction(args):
-    """Process-level worker for individual building analysis."""
     idx, seeds, local_pts, local_cols, gz, rot, off_xy, g_off, img_data, out_dir = args
-    houses = []
     
-    # Roof Plane Refinement
+    # Local Base-Trim: Dissolve ground bridges survived by RANSAC
+    local_mask = local_pts[:, 2] > 0.20
+    local_pts, local_cols = local_pts[local_mask], local_cols[local_mask]
+    if len(local_pts) < 100: return []
+    
+    # RANSAC Plane Refinement (Find the actual roof)
     valid_roof_pts = []
     rem = seeds.copy()
     while len(rem) > 100:
@@ -147,6 +144,7 @@ def worker_extraction(args):
     pure = np.vstack(valid_roof_pts)
     b_labels = DBSCAN(eps=2.0, min_samples=15).fit(pure[:, :2]).labels_
     
+    houses = []
     for b_id in range(b_labels.max() + 1):
         footprint = calculate_alpha_shape(pure[b_labels == b_id][:, :2])
         if not footprint: continue
@@ -174,10 +172,9 @@ def worker_extraction(args):
 
 # --- 4. MASTER PIPELINE ---
 
-def process_reconstruction_v3_5(project_path):
+def process_reconstruction_v3_7(project_path):
     global_start_time = time.time()
-    
-    out = os.path.join(project_path, "final_analysis_v3_5")
+    out = os.path.join(project_path, "final_analysis_v3_7")
     for d in ["individual_houses", "best_images", "diagnostics"]: os.makedirs(os.path.join(out, d), exist_ok=True)
 
     trans = Transformer.from_crs("EPSG:4326", EPSG_CODE, always_xy=True)
@@ -208,20 +205,22 @@ def process_reconstruction_v3_5(project_path):
     pcd.translate((-off_xy[0], -off_xy[1], 0))
     o3d.io.write_point_cloud(os.path.join(out, "diagnostics", "step3_leveled.ply"), pcd)
 
-    print("[4/7] Applying Ground Cut...")
-    _, inliers = pcd.segment_plane(0.5, 3, 1000)
+    print("[4/7] Multi-Tier Ground Cut & SOR...")
+    # Aggressive RANSAC (0.35m)
+    _, inliers = pcd.segment_plane(distance_threshold=0.35, ransac_n=3, num_iterations=1000)
     gz = np.median(np.asarray(pcd.select_by_index(inliers).points)[:, 2])
     ag_pcd = pcd.select_by_index(inliers, invert=True)
+    
+    # Statistical filter to snap ground bridges
+    ag_pcd, _ = ag_pcd.remove_statistical_outlier(nb_neighbors=12, std_ratio=1.2)
     ag_pcd.translate((0, 0, -gz))
     ag_pts, ag_colors = np.asarray(ag_pcd.points), np.asarray(ag_pcd.colors)
     o3d.io.write_point_cloud(os.path.join(out, "diagnostics", "step4_above_ground.ply"), ag_pcd)
 
-    print("[5/7] Geometric Consistency Filtering (Parallel)...")
+    print("[5/7] Geometric Consistency Filtering...")
     mean_h, std_h = np.mean(ag_pts[:, 2]), np.std(ag_pts[:, 2])
     r, g, b = ag_colors[:, 0], ag_colors[:, 1], ag_colors[:, 2]
     exg = (2 * g) - r - b
-    
-    # Candidates: Green OR Tall (Z > 2.5)
     cand_mask = (exg > 0.07) | ((ag_pts[:, 2] - mean_h) / std_h > 2.5)
     cand_idx = np.where(cand_mask)[0]
     tree_mask = (exg > 0.07).copy()
@@ -229,12 +228,12 @@ def process_reconstruction_v3_5(project_path):
     if len(cand_idx) > 0:
         tree = KDTree(ag_pts)
         neighbors = tree.query_ball_point(ag_pts[cand_idx], r=0.8, workers=-1)
-        unique_n = np.unique(np.fromiter((i for sl in neighbors for i in sl), dtype=int))
+        unique_n = np.unique(np.concatenate(neighbors))
         _, n_idx_l = tree.query(ag_pts[unique_n], k=32, workers=-1)
         z_v = ag_pts[n_idx_l][:, :, 2]
         is_chaos = (np.ptp(z_v, axis=1) > 0.35) | (np.std(z_v, axis=1) > 0.08)
         tree_mask[unique_n[is_chaos]] = True
-
+    
     pruned_ag_pcd = ag_pcd.select_by_index(np.where(~tree_mask)[0])
     ag_pts, ag_colors = np.asarray(pruned_ag_pcd.points), np.asarray(pruned_ag_pcd.colors)
     o3d.io.write_point_cloud(os.path.join(out, "diagnostics", "step5b_pruned_rgb.ply"), pruned_ag_pcd)
@@ -247,8 +246,9 @@ def process_reconstruction_v3_5(project_path):
     p_mask = np.std(h_pts[n_idx][:, :, 2], axis=1) < 0.20
     seeds = h_pts[p_mask]
     
-    seeds_sq = np.copy(seeds); seeds_sq[:, 2] *= 0.1
-    db = DBSCAN(eps=2.5, min_samples=15, n_jobs=-1).fit(seeds_sq)
+    # Balanced Z-Squish (0.05)
+    seeds_sq = np.copy(seeds); seeds_sq[:, 2] *= 0.05
+    db = DBSCAN(eps=2.2, min_samples=15, n_jobs=-1).fit(seeds_sq)
     labels = db.labels_
 
     worker_args = []
@@ -257,27 +257,27 @@ def process_reconstruction_v3_5(project_path):
         blob = seeds[idx]
         m, M = blob.min(axis=0), blob.max(axis=0)
         w, d, h = max(M[0]-m[0], 0.1), max(M[1]-m[1], 0.1), M[2]-m[2]
-        if h / np.sqrt(w*d) > 2.5 or len(idx) < 150: continue # Morphology Filter
+        if h / np.sqrt(w*d) > 2.5 or len(idx) < 150: continue # Morphology Check
         
         buf = 5.0
         mask = (ag_pts[:, 0] >= m[0]-buf) & (ag_pts[:, 0] <= M[0]+buf) & (ag_pts[:, 1] >= m[1]-buf) & (ag_pts[:, 1] <= M[1]+buf)
         worker_args.append((i, blob, ag_pts[mask], ag_colors[mask], gz, rot, off_xy, g_off, img_data, out))
 
-    print(f"[7/7] Final Parallel Extraction ({len(worker_args)} buildings)...")
-    results = []
+    print(f"[7/7] Parallel Extraction ({len(worker_args)} buildings)...")
+    final_res = []
     with concurrent.futures.ProcessPoolExecutor(max_workers=min(NUM_CORES, 32)) as executor:
         futures = [executor.submit(worker_extraction, a) for a in worker_args]
         for f in concurrent.futures.as_completed(futures):
             res = f.result()
-            if res: results.extend(res)
+            if res: final_res.extend(res)
 
     with open(os.path.join(out, "house_measurements.csv"), 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=["house_ID", "Area_sqft", "Volume_cuft", "Best_Image"])
         writer.writeheader()
-        writer.writerows(results)
+        writer.writerows(final_res)
     
-    print(f"SUCCESS. Found {len(results)} buildings in {time.time()-global_start_time:.2f}s")
+    print(f"SUCCESS. Found {len(final_res)} buildings in {time.time()-global_start_time:.2f}s")
 
 if __name__ == "__main__":
     if len(sys.argv) < 2: sys.exit(1)
-    process_reconstruction_v3_5(os.path.abspath(sys.argv[1]))
+    process_reconstruction_v3_7(os.path.abspath(sys.argv[1]))
