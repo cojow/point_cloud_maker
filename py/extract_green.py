@@ -28,63 +28,79 @@ NUM_CORES = os.cpu_count() or 1
 # --- 1. AUTOMATION HELPERS ---
 def auto_detect_offsets(project_dir):
     json_path = os.path.join(project_dir, 'reconstruction.json')
-    if not os.path.exists(json_path): return 0.0, 0.0
+    if not os.path.exists(json_path): 
+        return 0.0, 0.0
     try:
-        with open(json_path, 'r') as f: data = json.load(f)
+        with open(json_path, 'r') as f: 
+            data = json.load(f)
         ref = data[0].get('reference_lla')
         trans = Transformer.from_crs("EPSG:4326", EPSG_CODE, always_xy=True)
         return trans.transform(ref['longitude'], ref['latitude'])
-    except: return 0.0, 0.0
+    except: 
+        return 0.0, 0.0
 
 def build_spatial_image_index(image_dir, transformer):
     paths, coords = [], []
-    if not image_dir or not os.path.exists(image_dir): return None, None
+    if not image_dir or not os.path.exists(image_dir): 
+        return None, None
     files = glob.glob(os.path.join(image_dir, "*.jpg")) + glob.glob(os.path.join(image_dir, "*.JPG"))
     for p in files:
         try:
             exif = Image.open(p)._getexif()
-            if not exif: continue
+            if not exif: 
+                continue
             gps = {GPSTAGS.get(t, t): v for t, v in exif[list(TAGS.keys())[list(TAGS.values()).index('GPSInfo')]].items()}
             def to_d(v): return float(v[0]) + float(v[1])/60.0 + float(v[2])/3600.0
             lat, lon = to_d(gps['GPSLatitude']), to_d(gps['GPSLongitude'])
-            if gps['GPSLatitudeRef'] != 'N': lat = -lat
-            if gps['GPSLongitudeRef'] != 'E': lon = -lon
-            paths.append(p); coords.append(transformer.transform(lon, lat))
-        except: continue
+            if gps['GPSLatitudeRef'] != 'N': 
+                lat = -lat
+            if gps['GPSLongitudeRef'] != 'E': 
+                lon = -lon
+            paths.append(p) 
+            coords.append(transformer.transform(lon, lat))
+        except: 
+            continue
     return (paths, KDTree(np.array(coords))) if coords else (None, None)
 
 def repair_openmvs_ply_colors(ply_path):
-    with open(ply_path, 'rb') as f: header_chunk = f.read(2000)
+    with open(ply_path, 'rb') as f: 
+        header_chunk = f.read(2000)
     if b'diffuse_red' in header_chunk:
         fixed_path = ply_path.replace('.ply', '_color_fixed.ply')
-        with open(ply_path, 'rb') as f: content = f.read()
+        with open(ply_path, 'rb') as f: 
+            content = f.read()
         content = content.replace(b'property uchar diffuse_red', b'property uchar red        ')
         content = content.replace(b'property uchar diffuse_green', b'property uchar green      ')
         content = content.replace(b'property uchar diffuse_blue', b'property uchar blue       ')
-        with open(fixed_path, 'wb') as f: f.write(content)
+        with open(fixed_path, 'wb') as f: 
+            f.write(content)
         return fixed_path
     return ply_path
 
 # --- 2. EXTRACTION HELPERS ---
 def calculate_alpha_shape(points_2d, alpha=1.2):
-    if len(points_2d) < 4: return None
+    if len(points_2d) < 4: 
+        return None
     try:
         tri = Delaunay(points_2d)
         edges = np.array([points_2d[tri.simplices[:, [0, 1]]], points_2d[tri.simplices[:, [1, 2]]], points_2d[tri.simplices[:, [2, 0]]]])
         lengths = np.sqrt(np.sum((edges[:, :, 0, :] - edges[:, :, 1, :])**2, axis=2))
         circum_r = lengths[0,:]*lengths[1,:]*lengths[2,:] / (np.sqrt((lengths[0,:]+lengths[1,:]+lengths[2,:])*(-lengths[0,:]+lengths[1,:]+lengths[2,:])*(lengths[0,:]-lengths[1,:]+lengths[2,:])*(lengths[0,:]+lengths[1,:]-lengths[2,:])))
         valid = tri.simplices[np.nan_to_num(circum_r) < alpha]
-        if len(valid) == 0: return None
+        if len(valid) == 0: 
+            return None
         hull_pts = np.concatenate([points_2d, np.zeros((len(points_2d), 1))], axis=1)
         mesh = o3d.geometry.TriangleMesh(o3d.utility.Vector3dVector(hull_pts), o3d.utility.Vector3iVector(valid))
         return o3d.geometry.VoxelGrid.create_from_triangle_mesh(mesh, voxel_size=0.3), valid, hull_pts
-    except: return None
+    except: 
+        return None
 
 def apply_house_cookie_cutter(ag_pts, ag_colors, footprint_data):
     voxel_grid, _, _ = footprint_data
     contain = voxel_grid.check_if_included(o3d.utility.Vector3dVector(ag_pts * [1., 1., 0.]))
     f_pts, f_cols = ag_pts[contain], ag_colors[contain]
-    if len(f_pts) < 100: return None
+    if len(f_pts) < 100: 
+        return None
     
     mins, maxs = voxel_grid.get_min_bound(), voxel_grid.get_max_bound()
     res, cell_a = 0.6, 0.36
@@ -102,7 +118,8 @@ def apply_house_cookie_cutter(ag_pts, ag_colors, footprint_data):
         floor_pts = valid_grid.copy()
         floor_cols = np.full((len(floor_pts), 3), [0.4, 0.4, 0.4])
         combined_pts, combined_cols = np.vstack([f_pts, floor_pts]), np.vstack([f_cols, floor_cols])
-    else: return None
+    else: 
+        return None
 
     pcd = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(combined_pts))
     pcd.colors = o3d.utility.Vector3dVector(combined_cols)
@@ -113,25 +130,29 @@ def worker_extraction(args):
     idx, seeds, local_pts, local_cols, gz, rot, off_xy, g_off, img_data, out_dir = args
     local_mask = local_pts[:, 2] > 0.20
     local_pts, local_cols = local_pts[local_mask], local_cols[local_mask]
-    if len(local_pts) < 100: return []
+    if len(local_pts) < 100: 
+        return []
     
     valid_roof_pts = []
     rem = seeds.copy()
     while len(rem) > 100:
         tmp = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(rem))
         _, inliers = tmp.segment_plane(0.25, 3, 250)
-        if len(inliers) < 100: break
+        if len(inliers) < 100: 
+            break
         valid_roof_pts.append(rem[inliers])
         rem = np.delete(rem, inliers, axis=0)
     
-    if not valid_roof_pts: return []
+    if not valid_roof_pts: 
+        return []
     pure = np.vstack(valid_roof_pts)
     b_labels = DBSCAN(eps=2.0, min_samples=15).fit(pure[:, :2]).labels_
     
     houses = []
     for b_id in range(b_labels.max() + 1):
         footprint = calculate_alpha_shape(pure[b_labels == b_id][:, :2])
-        if not footprint: continue
+        if not footprint: 
+            continue
         res = apply_house_cookie_cutter(local_pts, local_cols, footprint)
         if res:
             p, a, v = res
@@ -139,7 +160,6 @@ def worker_extraction(args):
             p.translate((off_xy[0], off_xy[1], 0))
             p.rotate(rot.T, center=(0, 0, 0))
             
-            # --- HEIGHT AND RATIO MATH ---
             z_vals = np.asarray(p.points)[:, 2]
             height_m = z_vals.max() - z_vals.min()
             height_ft = height_m * 3.28084
@@ -150,27 +170,32 @@ def worker_extraction(args):
             
             cent = np.mean(np.asarray(p.points), axis=0)
             gx, gy = cent[0] + g_off[0], cent[1] + g_off[1]
-            uid = f"H_{abs(gx):.3f}_{abs(gy):.3f}".replace('.', 'd')
-            img_p = "N/A"
+            
+            # Temporary ID for parallel saving
+            temp_uid = f"H_{abs(gx):.3f}_{abs(gy):.3f}".replace('.', 'd')
+            
             if img_data[1]:
                 _, i_idx = img_data[1].query([gx, gy], k=1)
                 img_p = img_data[0][i_idx]
-                shutil.copy2(img_p, os.path.join(out_dir, "best_images", f"{uid}.jpg"))
-            o3d.io.write_point_cloud(os.path.join(out_dir, "individual_houses", f"{uid}.ply"), p)
+                shutil.copy2(img_p, os.path.join(out_dir, "best_images", f"{temp_uid}.jpg"))
+                
+            o3d.io.write_point_cloud(os.path.join(out_dir, "individual_houses", f"{temp_uid}.ply"), p)
             houses.append({
-                "house_ID": uid, 
+                "temp_ID": temp_uid, 
                 "Area_sqft": round(area_sqft, 2), 
                 "Volume_cuft": round(vol_cuft, 2), 
                 "Height_ft": round(height_ft, 2),
                 "Ratio_Area_to_Height": round(ratio, 2),
-                "Best_Image": img_p
+                "X_coord": gx,
+                "Y_coord": gy
             })
     return houses
 
 # --- 4. MASTER PIPELINE ---
-def process_reconstruction_v4_1(project_path):
+def process_reconstruction_v4_2(project_path):
     global_start_time = time.time()
-    out = os.path.join(project_path, "analysis_v4_1")
+    project_name = os.path.basename(os.path.normpath(project_path))
+    out = os.path.join(project_path, f"analysis_{project_name}_v4_2")
     for d in ["individual_houses", "best_images", "diagnostics"]: os.makedirs(os.path.join(out, d), exist_ok=True)
 
     print("[1/8] Syncing Global Offsets...")
@@ -221,7 +246,6 @@ def process_reconstruction_v4_1(project_path):
     
     pruned_ag_pcd = ag_pcd.select_by_index(np.where(~tree_mask)[0])
     ag_pts, ag_colors = np.asarray(pruned_ag_pcd.points), np.asarray(pruned_ag_pcd.colors)
-    o3d.io.write_point_cloud(os.path.join(out, "diagnostics", "step5b_pruned_rgb.ply"), pruned_ag_pcd)
 
     print("[6/8] Morphological Erosion (Bridge Snapper)...")
     final_pts = np.asarray(pruned_ag_pcd.points)
@@ -266,52 +290,85 @@ def process_reconstruction_v4_1(project_path):
         for res_list in ex.map(worker_extraction, worker_args):
             if res_list: raw_res.extend(res_list)
 
-    print(f"[8/8] Data-Driven Artifact Purge (Ratio Shield + 1D Clustering)...")
-    final_res = []
+    print("[8/8] Artifact Purge & Sequential Georeferencing...")
+    final_measurements = []
+    lookup_table = []
+    house_counter = 1
+    
+    # Reverse Transformer: UTM back to Lat/Long
+    reverse_trans = Transformer.from_crs(EPSG_CODE, "EPSG:4326", always_xy=True)
+    
     if len(raw_res) > 0:
-        # We now analyze the Area/Height Ratio instead of raw Area
         ratios = np.array([r["Ratio_Area_to_Height"] for r in raw_res])
-        
-        # 1. THE IQR SHIELD (Prevents massive commercial ratios from pulling the math)
         q1, q3 = np.percentile(ratios, [25, 75])
         iqr = q3 - q1
         upper_bound = q3 + 1.5 * iqr
         
-        # 2. ISOLATE NON-COMMERCIAL DATA
         eval_ratios = ratios[ratios <= upper_bound]
         
-        # 3. 1D CLUSTERING (JENKS EQUIVALENT)
         if len(eval_ratios) >= 2:
             kmeans = KMeans(n_clusters=2, n_init=10, random_state=42).fit(eval_ratios.reshape(-1, 1))
-            centers = kmeans.cluster_centers_.flatten()
-            natural_break = np.mean(centers)
-            # Fail-safe ceiling: We cap the deletion ratio at 20.0 to protect valid sheds
+            natural_break = np.mean(kmeans.cluster_centers_.flatten())
             threshold = min(natural_break, 20.0) 
         else:
-            threshold = 10.0 # Fallback
+            threshold = 10.0
             
-        print(f"      -> IQR Shield Boundary: {upper_bound:.2f} Ratio")
-        print(f"      -> Computed Artifact Threshold: {threshold:.2f} Ratio")
-        
-        # 4. ENFORCE DELETION
         for r in raw_res:
-            uid = r["house_ID"]
-            ratio = r["Ratio_Area_to_Height"]
+            old_ply_path = os.path.join(out, "individual_houses", f"{r['temp_ID']}.ply")
+            old_img_path = os.path.join(out, "best_images", f"{r['temp_ID']}.jpg")
             
-            if ratio > upper_bound or ratio >= threshold:
-                final_res.append(r)
-            else:
-                ply_p = os.path.join(out, "individual_houses", f"{uid}.ply")
-                img_p = os.path.join(out, "best_images", f"{uid}.jpg")
-                if os.path.exists(ply_p): os.remove(ply_p)
-                if os.path.exists(img_p): os.remove(img_p)
+            if r["Ratio_Area_to_Height"] > upper_bound or r["Ratio_Area_to_Height"] >= threshold:
+                # Valid Structure: Rename sequentially
+                new_uid = f"{project_name}_{house_counter}"
+                house_counter += 1
                 
+                new_ply_path = os.path.join(out, "individual_houses", f"{new_uid}.ply")
+                new_img_path = os.path.join(out, "best_images", f"{new_uid}.jpg")
+                
+                if os.path.exists(old_ply_path): os.rename(old_ply_path, new_ply_path)
+                if os.path.exists(old_img_path): os.rename(old_img_path, new_img_path)
+                
+                # Georeferencing
+                lon, lat = reverse_trans.transform(r['X_coord'], r['Y_coord'])
+                
+                final_measurements.append({
+                    "house_ID": new_uid,
+                    "Area_sqft": r["Area_sqft"],
+                    "Volume_cuft": r["Volume_cuft"],
+                    "Height_ft": r["Height_ft"],
+                    "Ratio_Area_to_Height": r["Ratio_Area_to_Height"],
+                    "Best_Image": new_img_path if os.path.exists(new_img_path) else "N/A"
+                })
+                
+                lookup_table.append({
+                    "house_ID": new_uid,
+                    "X_UTM": round(r['X_coord'], 3),
+                    "Y_UTM": round(r['Y_coord'], 3),
+                    "Latitude": round(lat,6),
+                    "Longitude": round(lon,6)
+                })
+            else:
+                # Artifact: Delete temporary files
+                if os.path.exists(old_ply_path): 
+                    os.remove(old_ply_path)
+                if os.path.exists(old_img_path): 
+                    os.remove(old_img_path)
+                
+    # Output Measurements
     with open(os.path.join(out, "measurements.csv"), 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=["house_ID", "Area_sqft", "Volume_cuft", "Height_ft", "Ratio_Area_to_Height", "Best_Image"])
         writer.writeheader()
-        writer.writerows(final_res)
-    print(f"SUCCESS. Validated {len(final_res)} buildings in {time.time()-global_start_time:.2f}s")
+        writer.writerows(final_measurements)
+        
+    # Output Location Lookup Table
+    with open(os.path.join(out, "location_lookup.csv"), 'w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=["house_ID", "X_UTM", "Y_UTM", "Latitude", "Longitude"])
+        writer.writeheader()
+        writer.writerows(lookup_table)
+        
+    print(f"SUCCESS. Validated {len(final_measurements)} buildings in {time.time()-global_start_time:.2f}s")
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2: sys.exit(1)
-    process_reconstruction_v4_1(os.path.abspath(sys.argv[1]))
+    if len(sys.argv) < 2: 
+        sys.exit(1)
+    process_reconstruction_v4_2(os.path.abspath(sys.argv[1]))

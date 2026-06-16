@@ -407,7 +407,8 @@ def process_reconstruction_v22(ply_path, raw_images_dir=None):
     print("="*40 + "\n")
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2: sys.exit(1)
+    if len(sys.argv) < 2: 
+        sys.exit(1)
     project_dir = os.path.abspath(sys.argv[1])
     test_file, raw_images_directory = os.path.join(project_dir, 'scene_dense.ply'), os.path.join(project_dir, 'images')
     if not os.path.exists(test_file): sys.exit(1)
