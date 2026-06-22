@@ -7,7 +7,7 @@ import sys
 import time
 import shutil
 import glob
-import cv2  # Added for cropping
+import cv2 
 from sklearn.cluster import DBSCAN, KMeans
 from scipy.spatial import Delaunay, KDTree
 from scipy.ndimage import binary_erosion, label
@@ -226,7 +226,7 @@ def worker_extraction(args):
             if img_data[1]:
                 _, i_idx = img_data[1].query([gx, gy], k=1)
                 img_p = img_data[0][i_idx]
-                orig_img_name = os.path.basename(img_p) # Capture original name
+                orig_img_name = os.path.basename(img_p) 
                 shutil.copy2(img_p, os.path.join(out_dir, "best_images", f"{temp_uid}.jpg"))
                 
             o3d.io.write_point_cloud(os.path.join(out_dir, "individual_houses", f"{temp_uid}.ply"), p)
@@ -238,7 +238,7 @@ def worker_extraction(args):
                 "Ratio_Area_to_Height": round(ratio, 2),
                 "X_coord": gx,
                 "Y_coord": gy,
-                "Original_Image": orig_img_name # Save to dict
+                "Original_Image": orig_img_name 
             })
     return houses
 
@@ -248,7 +248,6 @@ def process_reconstruction_v4_2(project_path):
     project_name = os.path.basename(os.path.normpath(project_path))
     out = os.path.join(project_path, f"analysis_{project_name}_v4_2")
     
-    # Added best_images_cropped directory
     for d in ["individual_houses", "best_images", "best_images_cropped", "diagnostics"]: 
         os.makedirs(os.path.join(out, d), exist_ok=True)
 
@@ -301,7 +300,7 @@ def process_reconstruction_v4_2(project_path):
     pruned_ag_pcd = ag_pcd.select_by_index(np.where(~tree_mask)[0])
     ag_pts, ag_colors = np.asarray(pruned_ag_pcd.points), np.asarray(pruned_ag_pcd.colors)
 
-    print("[6/9] Morphological Erosion (Bridge Snapper)...")
+    print("[6/9] Morphological Erosion & Fragment Reconciliation...")
     final_pts = np.asarray(pruned_ag_pcd.points)
     seeds = final_pts[np.where(final_pts[:, 2] > 2.2)[0]]
     
@@ -329,8 +328,79 @@ def process_reconstruction_v4_2(project_path):
     labels = core_labels[nearest_core_idx]
     labels[dists > 2.0] = 0 
 
+    # --- NEW: Pre-Extraction Agglomerative Reconciliation ---
+    unique_labels = np.unique(labels)
+    unique_labels = unique_labels[unique_labels > 0]
+    
+    label_sizes = {}
+    label_coords = {}
+    trees = {}
+    
+    # Pre-calculate sizes (2D area proxy) and build spatial trees
+    for lbl in unique_labels:
+        lbl_pts = seeds[labels == lbl]
+        lbl_c = np.floor((lbl_pts[:, :2] - min_b) / res).astype(int)
+        area_sqft = len(np.unique(lbl_c, axis=0)) * (res ** 2) * 10.764
+        label_sizes[lbl] = area_sqft
+        label_coords[lbl] = lbl_pts[:, :2]
+        trees[lbl] = KDTree(label_coords[lbl])
+        
+    # Proper Union-Find map
+    parent = {lbl: lbl for lbl in unique_labels}
+    
+    def find(i):
+        if parent[i] == i:
+            return i
+        parent[i] = find(parent[i])
+        return parent[i]
+        
+    def union(i, j):
+        root_i = find(i)
+        root_j = find(j)
+        if root_i != root_j:
+            # Attach smaller to larger
+            if label_sizes[root_i] < label_sizes[root_j]:
+                parent[root_i] = root_j
+                label_sizes[root_j] += label_sizes[root_i]
+            else:
+                parent[root_j] = root_i
+                label_sizes[root_i] += label_sizes[root_j]
+    
+    # Evaluate pairwise intersections for fragments
+    for lbl_a in unique_labels:
+        for lbl_b in unique_labels:
+            if lbl_a >= lbl_b: continue
+            
+            root_a = find(lbl_a)
+            root_b = find(lbl_b)
+            if root_a == root_b: continue
+            
+            size_a = label_sizes[root_a]
+            size_b = label_sizes[root_b]
+            
+            # Condition: One must be an absolute fragment (<150 sqft) OR a relative fragment (<5%)
+            is_a_frag = size_a < 150 or size_a < (0.05 * size_b)
+            is_b_frag = size_b < 150 or size_b < (0.05 * size_a)
+            
+            if not (is_a_frag or is_b_frag):
+                continue
+                
+            # Proximity check: ~2 feet overlap. If closest points are within 0.75m, they intersect.
+            dists_ab, _ = trees[lbl_b].query(label_coords[lbl_a], k=1, distance_upper_bound=0.75)
+            if np.any(dists_ab < 0.75):
+                union(lbl_a, lbl_b)
+                
+    # Apply resolved labels back to the points
+    for i in range(len(labels)):
+        if labels[i] > 0:
+            labels[i] = find(labels[i])
+            
+    final_unique_labels = np.unique(labels)
+    final_unique_labels = final_unique_labels[final_unique_labels > 0]
+    # --------------------------------------------------------
+
     worker_args = []
-    for i in range(1, num_buildings + 1):
+    for i in final_unique_labels:
         idx = np.where(labels == i)[0]
         blob = seeds[idx]
         if len(idx) < 150: continue
@@ -397,7 +467,7 @@ def process_reconstruction_v4_2(project_path):
                     "Y_UTM": round(r['Y_coord'], 3),
                     "Latitude": round(lat,6),
                     "Longitude": round(lon,6),
-                    "Original_Image": r.get("Original_Image", "N/A") # Included original name
+                    "Original_Image": r.get("Original_Image", "N/A") 
                 })
             else:
                 if os.path.exists(old_ply_path): os.remove(old_ply_path)
@@ -420,23 +490,16 @@ def process_reconstruction_v4_2(project_path):
         
         if os.path.exists(ply_path) and os.path.exists(img_path) and os.path.exists(reconstruction_file):
             try:
-                # 1. Fetch parameters using the original image name
                 rvec, tvec, K, dist = load_opensfm_camera(reconstruction_file, orig_name)
-                
-                # 2. Get 3D corners
                 corners_3d = get_3d_bounding_box(ply_path)
-                
-                # 3. Project 3D to 2D
                 corners_2d, _ = cv2.projectPoints(corners_3d, rvec, tvec, K, dist)
                 corners_2d = corners_2d.reshape(-1, 2)
                 
-                # 4. Calculate 2D bounding box
                 x_min = int(np.floor(np.min(corners_2d[:, 0])))
                 x_max = int(np.ceil(np.max(corners_2d[:, 0])))
                 y_min = int(np.floor(np.min(corners_2d[:, 1])))
                 y_max = int(np.ceil(np.max(corners_2d[:, 1])))
                 
-                # 5. Load the renamed sequential image and crop
                 img = cv2.imread(img_path)
                 if img is not None:
                     h, w = img.shape[:2]
@@ -458,7 +521,7 @@ def process_reconstruction_v4_2(project_path):
         writer.writeheader()
         writer.writerows(final_measurements)
         
-    # Output Location Lookup Table with new Original_Image column
+    # Output Location Lookup Table
     with open(os.path.join(out, "location_lookup.csv"), 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=["house_ID", "X_UTM", "Y_UTM", "Latitude", "Longitude", "Original_Image"])
         writer.writeheader()
