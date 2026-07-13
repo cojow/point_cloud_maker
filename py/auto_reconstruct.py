@@ -7,6 +7,7 @@ import sys
 import shutil
 import platform
 import time
+from resource_monitor import MemoryMonitor
 
 '''
  Run using: python auto_reconstruct.py data/900EBlock
@@ -16,6 +17,10 @@ import time
  Run: apptainer pull odm.sif docker://opendronemap/odm:latest
 '''
 
+# NOTE: This is an absolute path tied to a specific account/machine (e.g. the
+# supercomputer). It cannot be made portable/relative because it points outside
+# this repo. If you're running this on a different account or machine, update
+# this path to wherever you pulled odm.sif on that system.
 APPTAINER_IMAGE = "/home/willicon/point_cloud/odm.sif"
 DOCKER_IMAGE = "opendronemap/odm:latest"
 
@@ -180,7 +185,14 @@ def inject_mrk_data(project_path, mrk_files):
 
 def main(project_path):
     global_start_time = time.time()
-    
+
+    mem_monitor = MemoryMonitor()
+    if mem_monitor.start():
+        print("--- Memory monitor: sampling via psutil (main + containerized reconstruction process) ---")
+    else:
+        print("--- Memory monitor: psutil not installed, falling back to a cruder end-of-run estimate "
+              "(pip install psutil for an accurate number) ---")
+
     engine = get_engine()
     print(f"--- Detected OS: {platform.system()} | Selected Engine: {engine.upper()} ---")
 
@@ -254,12 +266,26 @@ def main(project_path):
     else:
         print(f"Error: Expected point cloud not found at {source_ply}. Densification may have failed.")
 
+    peak_gb, peak_method = mem_monitor.stop_and_report()
+
+    image_dir = os.path.join(project_path, 'images')
+    n_images = len([f for f in os.listdir(image_dir) if f.lower().endswith(('.jpg', '.jpeg', '.tif', '.tiff'))]) \
+        if os.path.exists(image_dir) else 0
+
     total_elapsed = time.time() - global_start_time
     hours, remainder = divmod(total_elapsed, 3600)
     minutes, seconds = divmod(remainder, 60)
-    
+
     print("-" * 40)
     print(f"Total Processing Time: {int(hours):02d}h {int(minutes):02d}m {seconds:05.2f}s")
+    print(f"Peak memory used: {peak_gb:.1f} GB  ({peak_method})")
+    print(f"Image count this run: {n_images}")
+    if engine == "docker":
+        print("NOTE: under Docker, the memory monitor cannot see inside the container process tree")
+        print("(Docker's client/daemon architecture means it isn't a real child process of this script),")
+        print("so this number is likely a severe undercount. This reporting is only reliable under")
+        print("Apptainer (i.e. on the actual supercomputer run), where the contained process IS a real child.")
+    print("Keep a note of the peak memory line against this image count for calibrating --mem next time.")
     print("-" * 40)
 
 if __name__ == "__main__":

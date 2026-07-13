@@ -1,4 +1,10 @@
 #!/bin/bash
+# Before submitting a dataset you haven't run before, get a starting point with:
+#   python /home/willicon/point_cloud/py/estimate_resources.py /home/willicon/point_cloud/data/<project>
+# After the job finishes, check this job's .out log for the "Peak memory used" /
+# "Image count this run" lines auto_reconstruct.py prints at the end - note them
+# against the image count, and use those real numbers to size --mem/--cpus-per-task
+# next time you run a similarly-sized image set.
 #SBATCH --job-name=odm_reconstruct
 #SBATCH --output=reconstruct_%j.out
 #SBATCH --nodes=1

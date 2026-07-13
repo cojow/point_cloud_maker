@@ -246,7 +246,7 @@ def worker_extraction(args):
 def process_reconstruction_v4_2(project_path):
     global_start_time = time.time()
     project_name = os.path.basename(os.path.normpath(project_path))
-    out = os.path.join(project_path, f"analysis_{project_name}_v4_2")
+    out = os.path.join(project_path, f"analysis_{project_name}_v4_2_1")
     
     for d in ["individual_houses", "best_images", "best_images_cropped", "diagnostics"]: 
         os.makedirs(os.path.join(out, d), exist_ok=True)

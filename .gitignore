@@ -1,2 +1,4 @@
 DS.Store
 data/*
+py/__pycache__
+README_files
