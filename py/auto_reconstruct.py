@@ -8,6 +8,7 @@ import shutil
 import platform
 import time
 from resource_monitor import MemoryMonitor
+from reconstruction_leveling import level_reconstruction
 
 '''
  Run using: python auto_reconstruct.py data/900EBlock
@@ -236,15 +237,22 @@ def main(project_path):
     # Phase 1: OpenSfM Pipeline
     steps = ["extract_metadata", "detect_features", "match_features", "create_tracks", "reconstruct", "undistort"]
     for step in steps:
-        if step == "detect_features" and mrk_files: 
+        if step == "detect_features" and mrk_files:
             inject_mrk_data(project_path, mrk_files)
-        
+
         run_container_command(
             engine=engine,
             command_list=[step, "/project"],
             host_project_path=project_path,
             entrypoint=opensfm_bin
         )
+
+        if step == "reconstruct":
+            # Correct the reconstruction's orientation to true gravity before
+            # undistort/densification bake the (possibly tilted) frame into
+            # scene_dense.ply. See reconstruction_leveling.py for the method.
+            print("\n--- Leveling reconstruction to true gravity ---")
+            level_reconstruction(project_path)
 
     # Phase 2: Lightweight OpenSfM Densification (Universal)
     print("\n--- Running Lightweight OpenSfM Densification ---")

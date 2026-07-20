@@ -31,6 +31,15 @@ echo "Starting Open3D extraction job..."
 # --ground-opening-span upward if it's still larger than your biggest
 # building's footprint (in meters) and roofs are leaking through as ground.
 # ex_building_elev.py is retired - do not use, isolation is broken in it.
+#
+# KNOWN ISSUE: the synthetic floor (cut-to-lowest-point-under-footprint) is
+# currently landing way too low on some buildings. Try
+# extract_buildings_no_floor.py below instead - despite the filename it does
+# add a floor, just the MEDIAN ground-model elevation under the footprint
+# (same ground_surface.ply diagnostic) instead of the minimum.
 python /home/willicon/point_cloud/py/extract_buildings.py /home/willicon/point_cloud/data/walnut_all --ground-cell-size 2.0 --ground-opening-span 20.0
+
+# Median-floor variant (try this until the min-based floor above is fixed):
+#python /home/willicon/point_cloud/py/extract_buildings_no_floor.py /home/willicon/point_cloud/data/walnut_all --ground-cell-size 2.0 --ground-opening-span 20.0
 
 echo "Job finished."

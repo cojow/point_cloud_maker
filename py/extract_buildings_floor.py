@@ -20,19 +20,24 @@ import concurrent.futures
 from resource_monitor import detect_cpu_count, MemoryMonitor
 
 '''
-extract_buildings.py
+extract_buildings_no_floor.py
 
-Built on top of the verified-working extract_green_buffer.py pipeline (same
-leveling, vegetation removal, morphological erosion / fragment reconciliation
-and RANSAC-roof + alpha-shape isolation logic). The one thing it replaces is
-the ground reference: instead of fitting one global flat plane and assuming
-every building in the flight sits at the same elevation, it builds a local
-"contour" ground surface directly from the point cloud (LocalGroundModel
-below) and uses it as the synthetic floor for every house, sampled at each
-footprint cell. This fixes over/under-sized buildings on flights that cover
-sloped or uneven terrain.
+NOTE: despite the filename, this version DOES synthesize a floor again - it
+started as a no-floor variant, then went back to using the diagnostic ground
+model (the same ground_surface.ply you can already inspect) as the floor
+source, instead of extract_buildings.py's min-based "cut to the lowest point"
+approach, which was landing way too low. The floor here is the MEDIAN of the
+ground model's samples across the footprint (a typical/representative ground
+elevation under the building), not the minimum, and not a per-cell average of
+the raw natural-terrain surface - still one flat value per house. Consider
+renaming this file once you're happy with the result.
 
-Run using: python extract_buildings.py data/900EBlock
+Same pipeline as extract_buildings.py otherwise (same leveling,
+LocalGroundModel, vegetation removal, erosion/fragment-reconciliation
+isolation logic). Height_ft/Volume_cuft are computed relative to this
+ground-model-derived floor, same as extract_buildings.py.
+
+Run using: python extract_buildings_no_floor.py data/900EBlock
 '''
 
 # --- SYSTEM CONFIGURATION ---
@@ -50,9 +55,9 @@ class LocalGroundModel:
     """Builds a locally-varying ground elevation surface ('contour map')
     directly from the point cloud: per-cell minimum elevation, then a
     morphological opening wide enough to punch through building/canopy cover
-    but not real terrain slope. Replaces a single global flat plane, so every
-    building - wherever it sits across a large or sloped flight area - gets
-    its own correct local ground truth."""
+    but not real terrain slope. Used here only for above-ground filtering,
+    vegetation removal and the roof-seed height threshold - NOT for
+    synthesizing a floor (see module docstring)."""
 
     def __init__(self, pts, cell_size=2.0, opening_span=20.0):
         self.cell_size = cell_size
@@ -204,14 +209,12 @@ def calculate_alpha_shape(points_2d, alpha=1.2):
 
 def apply_house_cookie_cutter(ag_pts, ag_colors, footprint_data, ground_model):
     """Crops the point cloud to one building's footprint and builds its
-    synthetic floor from the LocalGroundModel. LocalGroundModel estimates the
-    natural, pre-construction terrain (as if the building weren't there), but
-    a real foundation is a cut pad, not a continuation of that natural slope -
-    so rather than averaging the natural-terrain estimate across the
-    footprint (which just tracks the natural grade), this takes the minimum
-    of it: the pad sits at the lowest natural elevation found under/around the
-    footprint, i.e. cut down enough that the whole footprint is level and
-    nothing pokes up above pad height."""
+    synthetic floor from the diagnostic LocalGroundModel: the MEDIAN of the
+    ground model's samples across the footprint (a typical/representative
+    ground elevation under the building - the same surface ground_surface.ply
+    shows you), used as a single flat elevation for the whole floor. This
+    replaces extract_buildings.py's min-based "cut to the lowest point"
+    approach, which was landing way too low on sloped sites."""
     voxel_grid, _, _ = footprint_data
     contain = voxel_grid.check_if_included(o3d.utility.Vector3dVector(ag_pts * [1., 1., 0.]))
     f_pts, f_cols = ag_pts[contain], ag_colors[contain]
@@ -230,10 +233,11 @@ def apply_house_cookie_cutter(ag_pts, ag_colors, footprint_data, ground_model):
         valid_grid = grid[f_mask]
         area = len(valid_grid) * cell_a
 
-        # Level synthetic floor: minimum natural-terrain elevation across every
-        # footprint cell - models the cut pad, not the average natural grade.
+        # Level synthetic floor: median ground-model elevation across the
+        # footprint - a typical/representative reading of the diagnostic
+        # ground surface under this building, not its lowest corner.
         floor_samples = ground_model.get_z(valid_grid[:, 0], valid_grid[:, 1])
-        house_floor_z = np.min(floor_samples)
+        house_floor_z = np.median(floor_samples)
 
         for g_pt in valid_grid:
             col_m = (f_pts[:, 0] >= g_pt[0]) & (f_pts[:, 0] < g_pt[0]+res) & (f_pts[:, 1] >= g_pt[1]) & (f_pts[:, 1] < g_pt[1]+res)
@@ -250,10 +254,9 @@ def apply_house_cookie_cutter(ag_pts, ag_colors, footprint_data, ground_model):
 
     pcd = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(combined_pts))
     pcd.colors = o3d.utility.Vector3dVector(combined_cols)
-    # Floor points are always the trailing rows of combined_pts/pcd.points, in
-    # this order, for as long as the point cloud isn't reordered - the caller
-    # uses this count to re-level them again after un-rotating back to world
-    # coordinates (see worker_extraction).
+    # Floor points are always the trailing rows of combined_pts/pcd.points -
+    # the caller uses this count to re-level them again after un-rotating
+    # back to world coordinates (see worker_extraction).
     return pcd, area, vol, len(floor_pts)
 
 def load_opensfm_camera(reconstruction_file, image_filename):
@@ -395,7 +398,7 @@ def process_reconstruction(args):
     global_start_time = time.time()
     project_path = os.path.abspath(args.project_path)
     project_name = os.path.basename(os.path.normpath(project_path))
-    out = os.path.join(project_path, f"analysis_{project_name}_v1_4")
+    out = os.path.join(project_path, f"analysis_{project_name}_groundfloor")
 
     for d in ["individual_houses", "best_images", "best_images_cropped", "diagnostics"]:
         os.makedirs(os.path.join(out, d), exist_ok=True)
@@ -699,6 +702,8 @@ def process_reconstruction(args):
         writer.writeheader()
         writer.writerows(final_measurements)
     print(f"      -> Measurements written to: {measurements_path}")
+    print(f"      -> NOTE: floor is the MEDIAN ground-model elevation across each footprint "
+          f"(see diagnostics/ground_surface.ply), not the minimum.")
 
     lookup_path = os.path.join(out, "location_lookup.csv")
     with open(lookup_path, 'w', newline='') as f:
@@ -722,7 +727,7 @@ def process_reconstruction(args):
     print("-" * 60)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Extract buildings from point cloud data using a local contour ground model.")
+    parser = argparse.ArgumentParser(description="Extract buildings from point cloud data - floor is the median ground-model elevation per footprint.")
     parser.add_argument("project_path", type=str, help="Path to the OpenDroneMap project directory.")
     parser.add_argument("--ground-cell-size", type=float, default=2.0,
                         help="Grid cell size in meters for the local contour ground model. Smaller = more "
