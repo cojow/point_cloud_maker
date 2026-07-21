@@ -12,17 +12,26 @@ from reconstruction_leveling import level_reconstruction
 
 '''
  Run using: python auto_reconstruct.py data/900EBlock
- 
- Note for Linux/Supercomputer: 
- Make sure 'odm.sif' is at the absolute path specified below.
+
+ Note for Linux/Supercomputer:
+ Make sure APPTAINER_IMAGE below points at a working image.
  Run: apptainer pull odm.sif docker://opendronemap/odm:latest
+
+ If apptainer fails with something like "squashfuse_ll ... fuse: device not
+ found", the compute node doesn't have FUSE available to mount the .sif.
+ Workaround: convert it to a sandbox (a plain directory, no FUSE mount
+ needed either to build it or to run against it) and point APPTAINER_IMAGE
+ there instead:
+   apptainer build --sandbox /home/willicon/point_cloud/odm_sandbox /home/willicon/point_cloud/odm.sif
 '''
 
 # NOTE: This is an absolute path tied to a specific account/machine (e.g. the
 # supercomputer). It cannot be made portable/relative because it points outside
 # this repo. If you're running this on a different account or machine, update
-# this path to wherever you pulled odm.sif on that system.
-APPTAINER_IMAGE = "/home/willicon/point_cloud/odm.sif"
+# this path to wherever you pulled odm.sif (or built the sandbox - see above)
+# on that system. Works identically whether this points at a .sif file or a
+# sandbox directory - apptainer exec treats them the same way.
+APPTAINER_IMAGE = "/home/willicon/point_cloud/odm_sandbox"
 DOCKER_IMAGE = "opendronemap/odm:latest"
 
 def is_linux():
