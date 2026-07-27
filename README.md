@@ -47,7 +47,6 @@ Using the command `mkdir folder_name`, make the following file paths in the supe
 
 (i.e. `mkdir /home/username/point_cloud`)
 
-#### Dependecies and files
 A major part of the code's backbone is built upon the point cloud densifier code from [Opendronemap](https://github.com/opendronemap/ODM). In order to run the pipeline, you'll need a container engine:
 - **If running locally**: [Docker](https://www.docker.com/) (uses the
   `opendronemap/odm:latest` image, pulled automatically on first run) (Not suggested due to the amounts of computational power needed.)
@@ -56,15 +55,23 @@ A major part of the code's backbone is built upon the point cloud densifier code
   ```
 - **Using the BYU supercomputer**: [Apptainer](https://apptainer.org/).
 Apptainer may work locally as well, this has not be verified. Docker for sure does not work on the BYU supercomputer.
+
+  Apptainer isn't on your `PATH` by default - load it first, every time you start a new shell session:
   ```
-  apptainer pull odm.sif 
+  module load apptainer
   ```
+  Pull the image, then convert it into a sandbox (a plain, uncompressed directory). This is required, not optional - some compute nodes on the BYU supercomputer can't mount a `.sif` file directly (fails with a `squashfuse_ll ... fuse: device not found` error), but a sandbox sidesteps that since it doesn't need FUSE to build or to run against, either way:
+  ```
+  apptainer pull odm.sif docker://opendronemap/odm:latest
+  apptainer build --sandbox odm_sandbox odm.sif
+  ```
+  >**Note**: A sandbox is a full, uncompressed copy of the image, so it takes noticeably more disk space than the `.sif` - check you have room first (`df -h ~`). If the build command complains about permissions, retry with `--fakeroot` added. This shouldn't be a problem, however.
 
 > **Note:** [`py/auto_reconstruct.py`](py/auto_reconstruct.py) hardcodes the
-> path to `odm.sif` (`APPTAINER_IMAGE`) for the Apptainer/Linux case, since
+> path to the sandbox (`APPTAINER_IMAGE`) for the Apptainer/Linux case, since
 > that path lives outside this repo and differs per machine/account. When
 > you download the repository, update that path at the
-> top of the file before running.
+> top of the file to point at wherever you built `odm_sandbox` above.
 
 Upload the `py` and `scjobs` folders to their respective folders in the supercomputer. Upload `requirements.txt` to `home/username`.
 
