@@ -2,3 +2,6 @@ DS.Store
 data/*
 py/__pycache__
 README_files
+.claude
+housing_data/TaxParcel_July21_2026_all.csv
+housing_data/TaxParcel_July21_2026_all.csv.xml
