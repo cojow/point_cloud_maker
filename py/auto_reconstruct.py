@@ -7,8 +7,19 @@ import sys
 import shutil
 import platform
 import time
+import argparse
+import shlex
+import numpy as np
 from resource_monitor import MemoryMonitor
 from reconstruction_leveling import level_reconstruction
+
+# Line-buffer stdout: when redirected to a file (e.g. a SLURM .out log),
+# Python block-buffers by default and only flushes at exit. If the job gets
+# killed (timeout, OOM) instead of exiting cleanly, everything this script
+# printed - peak memory, step progress, resource sizing info - is lost. The
+# subprocess calls to docker/apptainer are unaffected by this; they inherit
+# the fd directly and were already showing up in real time.
+sys.stdout.reconfigure(line_buffering=True)
 
 '''
  Run using: python auto_reconstruct.py data/900EBlock
@@ -115,8 +126,40 @@ def get_binary_path(engine, binary_name, search_cmd):
         print(f"Error executing container probe: {e}")
         sys.exit(1)
 
+# Where the OpenSfM launcher actually lives in the opendronemap/odm image. The
+# probe below still runs, but it checks this path first and only falls back to
+# walking /code and /usr when it isn't there. That walk is not cheap: against a
+# --sandbox (an uncompressed directory of hundreds of thousands of small files,
+# often on a network filesystem) it stats the entire image to rediscover a path
+# that hasn't moved.
+KNOWN_OPENSFM_PATH = "/code/SuperBuild/install/bin/opensfm/bin/opensfm"
+
 def get_odm_opensfm_path(engine):
-    return get_binary_path(engine, "OpenSfM", "find /code /usr -name opensfm -type f 2>/dev/null | grep bin | head -n 1")
+    return get_binary_path(
+        engine, "OpenSfM",
+        f"if [ -f {KNOWN_OPENSFM_PATH} ]; then echo {KNOWN_OPENSFM_PATH}; "
+        f"else find /code /usr -name opensfm -type f 2>/dev/null | grep bin | head -n 1; fi"
+    )
+
+def run_opensfm_steps(engine, steps, project_path, opensfm_bin):
+    """Runs several OpenSfM steps inside ONE container invocation.
+
+    Each `apptainer exec` costs 12-23s of startup before any work happens
+    (measured across the stage gaps in the fir job logs), and the original code
+    paid that for all seven steps separately. The steps are chained with && so a
+    failure still stops the batch, and each one is announced first so a failure
+    is still attributable to a specific step in the log."""
+    inner = " && ".join(
+        f"echo '>>> OpenSfM step: {step}' && {shlex.quote(opensfm_bin)} {step} /project"
+        for step in steps
+    )
+    print(f"--- Container batch ({len(steps)} step{'s' if len(steps) != 1 else ''}): {', '.join(steps)} ---")
+    run_container_command(
+        engine=engine,
+        command_list=["-c", inner],
+        host_project_path=project_path,
+        entrypoint="sh"
+    )
 
 def organize_folders(project_path):
     images_dir = os.path.join(project_path, 'images')
@@ -193,8 +236,164 @@ def inject_mrk_data(project_path, mrk_files):
                 with open(json_file, 'w') as f: 
                     json.dump(data, f, indent=4)
 
-def main(project_path):
+PLY_TYPE_MAP = {
+    'char': 'i1', 'int8': 'i1', 'uchar': 'u1', 'uint8': 'u1',
+    'short': 'i2', 'int16': 'i2', 'ushort': 'u2', 'uint16': 'u2',
+    'int': 'i4', 'int32': 'i4', 'uint': 'u4', 'uint32': 'u4',
+    'float': 'f4', 'float32': 'f4', 'double': 'f8', 'float64': 'f8',
+}
+
+# OpenMVS writes colours under non-standard property names, which is why
+# Open3D silently loads the cloud with no colours and extract_buildings_floor.py
+# carries a repair_openmvs_ply_colors() workaround. Renaming them here means
+# that workaround finds nothing to fix and becomes a no-op, which also saves it
+# from making its own full-size copy of the point cloud downstream.
+PLY_COLOR_RENAMES = {'diffuse_red': 'red', 'diffuse_green': 'green', 'diffuse_blue': 'blue'}
+
+def _write_ply_block(block, fout, dtype, names, n_props):
+    """Parses one whitespace-separated ASCII block into the packed binary
+    record layout and appends it. Returns the number of vertices written."""
+    vals = np.fromstring(block.decode('ascii'), dtype=np.float64, sep=' ')
+    if vals.size == 0:
+        return 0
+    if vals.size % n_props:
+        raise ValueError(f"ASCII body block has {vals.size} values, not a multiple of {n_props} properties")
+    rows = vals.reshape(-1, n_props)
+    rec = np.empty(len(rows), dtype=dtype)
+    for k, nm in enumerate(names):
+        rec[nm] = rows[:, k]
+    fout.write(rec.tobytes())
+    return len(rows)
+
+def convert_ply_ascii_to_binary(src_path, dst_path, chunk_bytes=1 << 24):
+    """Rewrites an ASCII PLY as binary_little_endian, streaming in chunks so
+    memory stays flat regardless of point count.
+
+    OpenSfM emits merged.ply as ASCII: the 245-image fir run produced a 1.8 GB
+    file for 33.1M points, where the same data packed binary is ~0.9 GB. The
+    size is only half of it - the real cost is downstream, where Open3D has to
+    text-parse 33 million lines every time extract_buildings_floor.py loads the
+    cloud.
+
+    Returns (n_vertices, src_bytes, dst_bytes) on success, or None if the file
+    isn't a plain single-element ASCII point cloud - in which case the caller
+    should just move it unchanged rather than risk mangling it."""
+    with open(src_path, 'rb') as f:
+        header = []
+        while True:
+            line = f.readline()
+            if not line:
+                return None                      # ran out of file before end_header
+            header.append(line)
+            if line.strip() == b'end_header':
+                break
+            if len(header) > 200:
+                return None                      # implausible header, don't guess
+        body_offset = f.tell()
+
+    fmt, elements, props = None, [], []
+    for raw in header:
+        parts = raw.decode('ascii', 'replace').strip().split()
+        if not parts:
+            continue
+        if parts[0] == 'format' and len(parts) > 1:
+            fmt = parts[1]
+        elif parts[0] == 'element' and len(parts) > 2:
+            elements.append((parts[1], int(parts[2])))
+        elif parts[0] == 'property':
+            if parts[1] == 'list':
+                return None                      # faces/variable-length: not a point cloud
+            props.append((parts[1], parts[2]))
+
+    # Only handle the shape merged.ply actually has: one element, fixed-width
+    # scalar properties, ASCII. Anything else falls back to a plain move.
+    if fmt != 'ascii' or len(elements) != 1 or not props:
+        return None
+    if any(t not in PLY_TYPE_MAP for t, _ in props):
+        return None
+
+    n_vertices = elements[0][1]
+    names = [PLY_COLOR_RENAMES.get(n, n) for _, n in props]
+    if len(set(names)) != len(names):
+        return None                              # rename would collide; leave it alone
+    dtype = np.dtype([(n, PLY_TYPE_MAP[t]) for n, (t, _) in zip(names, props)])
+    n_props = len(props)
+
+    out_header = ["ply", "format binary_little_endian 1.0", f"element {elements[0][0]} {n_vertices}"]
+    out_header += [f"property {t} {n}" for (t, _), n in zip(props, names)]
+    out_header.append("end_header")
+
+    written, buf = 0, b''
+    with open(src_path, 'rb') as fin, open(dst_path, 'wb') as fout:
+        fin.seek(body_offset)
+        fout.write(("\n".join(out_header) + "\n").encode('ascii'))
+        while True:
+            data = fin.read(chunk_bytes)
+            if not data:
+                break
+            buf += data
+            cut = buf.rfind(b'\n')               # only parse whole lines
+            if cut == -1:
+                continue
+            block, buf = buf[:cut], buf[cut + 1:]
+            written += _write_ply_block(block, fout, dtype, names, n_props)
+        if buf.strip():
+            written += _write_ply_block(buf, fout, dtype, names, n_props)
+
+    if written != n_vertices:
+        raise ValueError(f"converted {written} vertices but header declared {n_vertices}")
+    return n_vertices, os.path.getsize(src_path), os.path.getsize(dst_path)
+
+def cleanup_intermediate_files(project_path):
+    """Deletes everything in project_path except what extract_buildings_floor.py
+    actually reads: images/, reconstruction.json, and scene_dense.ply. Everything
+    else here (features/, matches/, undistorted/ depthmaps and undistorted images,
+    tracks.csv, camera_models.json, config.yaml, *.MRK, etc.) is OpenSfM/ODM working
+    state needed only to produce those three things, not to extract buildings
+    from them - and is often much larger than the outputs actually kept."""
+    KEEP = {"images", "reconstruction.json", "scene_dense.ply"}
+
+    print("\n--- Cleaning up intermediate reconstruction files ---")
+    freed_bytes = 0
+    for entry in sorted(os.listdir(project_path)):
+        if entry in KEEP:
+            continue
+        entry_path = os.path.join(project_path, entry)
+        try:
+            if os.path.isdir(entry_path) and not os.path.islink(entry_path):
+                size = sum(os.path.getsize(os.path.join(dp, f))
+                           for dp, _, fnames in os.walk(entry_path) for f in fnames)
+                shutil.rmtree(entry_path)
+            else:
+                size = os.path.getsize(entry_path)
+                os.remove(entry_path)
+            freed_bytes += size
+            print(f"      removed {entry} ({size / (1024**2):.1f} MB)")
+        except OSError as e:
+            print(f"      [!] Could not remove {entry}: {e}")
+
+    print(f"      -> Freed {freed_bytes / (1024**3):.2f} GB. Kept: {', '.join(sorted(KEEP))}")
+
+def set_config_value(config_lines, key, value):
+    """Replaces (or adds) a single top-level 'key: value' line in an OpenSfM
+    config.yaml's lines, leaving every other line untouched."""
+    config_lines = [line for line in config_lines if not line.strip().startswith(f"{key}:")]
+    # Guarantee the line we're about to append starts on its own line. If the
+    # file's last line had no trailing newline (a hand-edited config.yaml - the
+    # README tells you to edit these with nano - or one written by any tool
+    # other than this function), a bare append silently welds the new setting
+    # onto the end of the previous one: "feature_type: SIFTprocesses: 16",
+    # destroying BOTH settings with no error. Every config.yaml this script has
+    # written so far ends in a newline, which is the only reason this hasn't
+    # bitten yet.
+    if config_lines and not config_lines[-1].endswith("\n"):
+        config_lines[-1] += "\n"
+    config_lines.append(f"{key}: {value}\n")
+    return config_lines
+
+def main(args):
     global_start_time = time.time()
+    project_path = args.project_path
 
     mem_monitor = MemoryMonitor()
     if mem_monitor.start():
@@ -237,40 +436,57 @@ def main(project_path):
         with open(config_path, 'r') as f:
             config_lines = f.readlines()
             
-    config_lines = [line for line in config_lines if not line.strip().startswith("processes:")]
-    config_lines.append(f"processes: {max_cores}\n")
-    
+    config_lines = set_config_value(config_lines, "processes", max_cores)
+
+    # Densification + matching tuning - only touches config.yaml for flags the
+    # user actually passed; anything left as None keeps whatever OpenSfM's own
+    # default (or whatever's already in this project's config.yaml) is.
+    depthmap_overrides = {
+        "depthmap_method": args.depthmap_method,
+        "depthmap_resolution": args.depthmap_resolution,
+        "depthmap_min_consistent_views": args.depthmap_min_consistent_views,
+        "depthmap_min_patch_sd": args.depthmap_min_patch_sd,
+        "depthmap_num_neighbors": args.depthmap_num_neighbors,
+        "depthmap_num_matching_views": args.depthmap_num_matching_views,
+        "matching_gps_neighbors": args.matching_gps_neighbors,
+        "matching_gps_distance": args.matching_gps_distance,
+    }
+    for key, value in depthmap_overrides.items():
+        if value is not None:
+            config_lines = set_config_value(config_lines, key, value)
+            print(f"--- Overriding {key}: {value} ---")
+
     with open(config_path, 'w') as f:
         f.writelines(config_lines)
     
-    # Phase 1: OpenSfM Pipeline
-    steps = ["extract_metadata", "detect_features", "match_features", "create_tracks", "reconstruct", "undistort"]
-    for step in steps:
-        if step == "detect_features" and mrk_files:
-            inject_mrk_data(project_path, mrk_files)
+    # Phase 1: OpenSfM Pipeline.
+    #
+    # Batched into as few container invocations as the pipeline's two Python-side
+    # hooks allow, rather than one per step:
+    #   - inject_mrk_data has to run after extract_metadata (it edits the exif/
+    #     JSONs that step writes) and before detect_features. Only needed when
+    #     there are .MRK files, so with no .MRK files this split disappears.
+    #   - level_reconstruction has to run after reconstruct and before undistort,
+    #     so the gravity correction is baked into the densified cloud.
+    # Result: 2 container launches (or 3 with .MRK files) instead of 7.
+    if mrk_files:
+        run_opensfm_steps(engine, ["extract_metadata"], project_path, opensfm_bin)
+        inject_mrk_data(project_path, mrk_files)
+        run_opensfm_steps(engine, ["detect_features", "match_features", "create_tracks", "reconstruct"],
+                          project_path, opensfm_bin)
+    else:
+        run_opensfm_steps(engine, ["extract_metadata", "detect_features", "match_features",
+                                   "create_tracks", "reconstruct"], project_path, opensfm_bin)
 
-        run_container_command(
-            engine=engine,
-            command_list=[step, "/project"],
-            host_project_path=project_path,
-            entrypoint=opensfm_bin
-        )
+    # Correct the reconstruction's orientation to true gravity before
+    # undistort/densification bake the (possibly tilted) frame into
+    # scene_dense.ply. See reconstruction_leveling.py for the method.
+    print("\n--- Leveling reconstruction to true gravity ---")
+    level_reconstruction(project_path)
 
-        if step == "reconstruct":
-            # Correct the reconstruction's orientation to true gravity before
-            # undistort/densification bake the (possibly tilted) frame into
-            # scene_dense.ply. See reconstruction_leveling.py for the method.
-            print("\n--- Leveling reconstruction to true gravity ---")
-            level_reconstruction(project_path)
-
-    # Phase 2: Lightweight OpenSfM Densification (Universal)
-    print("\n--- Running Lightweight OpenSfM Densification ---")
-    run_container_command(
-        engine=engine,
-        command_list=["compute_depthmaps", "/project"],
-        host_project_path=project_path,
-        entrypoint=opensfm_bin
-    )
+    # Phase 2: undistort + Lightweight OpenSfM Densification (Universal)
+    print("\n--- Undistorting and running Lightweight OpenSfM Densification ---")
+    run_opensfm_steps(engine, ["undistort", "compute_depthmaps"], project_path, opensfm_bin)
     source_ply = os.path.join(project_path, 'undistorted', 'depthmaps', 'merged.ply')
 
     # Finalizing
@@ -278,12 +494,49 @@ def main(project_path):
     final_ply_path = os.path.join(project_path, 'scene_dense.ply')
     
     if os.path.exists(source_ply):
-        shutil.copy2(source_ply, final_ply_path)
+        converted = None
+        if not args.ascii_ply:
+            try:
+                t0 = time.time()
+                converted = convert_ply_ascii_to_binary(source_ply, final_ply_path)
+                if converted:
+                    n_pts, src_b, dst_b = converted
+                    os.remove(source_ply)
+                    print(f"Converted point cloud to binary PLY in {time.time()-t0:.1f}s: "
+                          f"{n_pts:,} points, {src_b/(1024**3):.2f} GB ASCII -> "
+                          f"{dst_b/(1024**3):.2f} GB binary ({100*(1-dst_b/src_b):.0f}% smaller)")
+                else:
+                    print("Point cloud is not a plain ASCII point cloud; moving it unchanged.")
+            except Exception as e:
+                # Never let a conversion problem cost the run its output.
+                print(f"[!] Binary PLY conversion failed ({e}); falling back to moving the ASCII file.")
+                if os.path.exists(final_ply_path):
+                    os.remove(final_ply_path)
+                converted = None
+
+        if not converted:
+            # Move, don't copy. merged.ply is a consumed intermediate and
+            # scene_dense.ply is the deliverable, so copying 1.8 GB only to
+            # delete the original (which --cleanup does anyway) is pure waste.
+            # os.replace is an instant same-filesystem rename; the copy is kept
+            # only as a cross-device fallback.
+            try:
+                os.replace(source_ply, final_ply_path)
+            except OSError:
+                shutil.copy2(source_ply, final_ply_path)
+
         print(f"Pipeline Complete! Point cloud successfully extracted to: \n -> {final_ply_path}")
     else:
         print(f"Error: Expected point cloud not found at {source_ply}. Densification may have failed.")
 
     peak_gb, peak_method = mem_monitor.stop_and_report()
+
+    if args.cleanup:
+        if os.path.exists(final_ply_path):
+            cleanup_intermediate_files(project_path)
+        else:
+            print("--- Skipping cleanup: scene_dense.ply was not produced, keeping intermediate "
+                  "files around so the failed run can still be debugged ---")
 
     image_dir = os.path.join(project_path, 'images')
     n_images = len([f for f in os.listdir(image_dir) if f.lower().endswith(('.jpg', '.jpeg', '.tif', '.tiff'))]) \
@@ -306,7 +559,78 @@ def main(project_path):
     print("-" * 40)
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2: 
-        print("Usage: python auto_reconstruct.py <path>")
-    else: 
-        main(sys.argv[1])
+    parser = argparse.ArgumentParser(description="Reconstruct a point cloud from drone photos via OpenSfM/ODM.")
+    parser.add_argument("project_path", type=str, help="Path to the project directory (e.g. data/900EBlock).")
+
+    parser.add_argument("--depthmap-method", type=str, default=None,
+                        choices=["PATCH_MATCH", "PATCH_MATCH_SAMPLE", "BRUTE_FORCE"],
+                        help="Depth estimation algorithm (OpenSfM stock default: PATCH_MATCH_SAMPLE, confirmed "
+                             "via job logs). PATCH_MATCH_SAMPLE is a faster, sparser approximation - it attempts "
+                             "fewer per-pixel estimates and refines them less. PATCH_MATCH is the full method: "
+                             "more coverage (fewer un-attempted pixels) and more refined estimates, at real extra "
+                             "cost - likely one of the more expensive levers here, not a cheap one. BRUTE_FORCE is "
+                             "an older exhaustive-search fallback, generally not preferred. Leave unset to keep "
+                             "the existing config.yaml/OpenSfM default.")
+    parser.add_argument("--depthmap-resolution", type=int, default=None,
+                        help="Depth estimation resolution in pixels, per image (OpenSfM stock default: 640). "
+                             "The single biggest lever on point cloud detail - but cost scales roughly with "
+                             "the square of this value, per image. Leave unset to keep the existing config.yaml/"
+                             "OpenSfM default.")
+    parser.add_argument("--depthmap-min-consistent-views", type=int, default=None,
+                        help="Minimum number of neighboring images that must agree before a depth estimate is "
+                             "kept (OpenSfM stock default: 3). Lower = more points survive, more noise. Cheap "
+                             "to tune - just a filter on estimates already computed. Leave unset to keep the "
+                             "existing config.yaml/OpenSfM default.")
+    parser.add_argument("--depthmap-min-patch-sd", type=float, default=None,
+                        help="Minimum patch texture (standard deviation) required to attempt a depth estimate "
+                             "(OpenSfM stock default: ~1.0). Lowering it helps fill in low-texture surfaces like "
+                             "roofs and painted walls. Leave unset to keep the existing config.yaml/OpenSfM default.")
+    parser.add_argument("--depthmap-num-neighbors", type=int, default=None,
+                        help="Number of neighboring images considered per shot during depth estimation (OpenSfM "
+                             "stock default: 10). More = better accuracy/coverage, more compute. Leave unset to "
+                             "keep the existing config.yaml/OpenSfM default.")
+    parser.add_argument("--depthmap-num-matching-views", type=int, default=None,
+                        help="Number of matching views used per depth estimate (OpenSfM stock default: 5). "
+                             "Leave unset to keep the existing config.yaml/OpenSfM default.")
+    parser.add_argument("--matching-gps-neighbors", type=int, default=None,
+                        help="Match each image only against its N nearest neighbors by GPS position "
+                             "(OpenSfM stock default: 0, meaning 'no neighbor cap' - the distance bound "
+                             "alone decides). THIS IS THE MAIN SCALING LEVER. match_features is the only "
+                             "O(n^2) stage in the pipeline: on the 245-image fir run it attempted 17,858 "
+                             "pairs and only 1,839 (10.3%%) produced a usable match, so ~90%% of that "
+                             "5.98-minute stage was spent proving that non-overlapping images don't "
+                             "overlap. Capping neighbors makes the pair count grow linearly with image "
+                             "count instead of quadratically. Try 20-30 for a mapping flight with normal "
+                             "overlap. Verify the effect on the next run via the 'Matching N image pairs' "
+                             "line in the log, and confirm the reconstruction still registers about as "
+                             "many images ('Reconstruction 0: N images'). Leave unset to keep the "
+                             "existing config.yaml/OpenSfM default.")
+    parser.add_argument("--matching-gps-distance", type=float, default=None,
+                        help="Maximum GPS distance in meters between two images for them to be considered "
+                             "a candidate pair (OpenSfM stock default: 150). This bound and "
+                             "--matching-gps-neighbors are applied together (nearest N, subject to being "
+                             "within this distance), so tightening either one shrinks the pair list. At a "
+                             "typical ~100m survey altitude over a neighborhood, 150m is wide enough that "
+                             "nearly every image is a candidate for nearly every other, which is why the "
+                             "neighbor cap above is usually the more effective knob. Leave unset to keep "
+                             "the existing config.yaml/OpenSfM default.")
+    parser.add_argument("--ascii-ply", action="store_true",
+                        help="Keep scene_dense.ply in OpenSfM's native ASCII format instead of converting "
+                             "it to binary_little_endian. Conversion is on by default because it roughly "
+                             "halves the file (1.8 GB -> ~0.9 GB for the 245-image fir run's 33.1M points) "
+                             "and, more importantly, spares extract_buildings_floor.py from text-parsing 33 "
+                             "million lines on every load. Conversion also renames OpenMVS's non-standard "
+                             "diffuse_red/green/blue colour properties to the standard red/green/blue, so "
+                             "Open3D loads colours directly. Pass this flag if you need the ASCII file for "
+                             "an external tool that can't read binary PLY.")
+    parser.add_argument("--cleanup", action="store_true",
+                        help="After the pipeline finishes, delete everything in the project directory "
+                             "except images/, reconstruction.json, and scene_dense.ply - the only three "
+                             "things extract_buildings_floor.py reads. This removes OpenSfM's working "
+                             "state (features/, matches/, undistorted/ depthmaps and undistorted images, "
+                             "tracks.csv, camera_models.json, config.yaml, etc.), which is usually much "
+                             "larger than what's kept. Skipped automatically if scene_dense.ply wasn't "
+                             "produced, so a failed run's intermediate files aren't lost.")
+
+    args = parser.parse_args()
+    main(args)

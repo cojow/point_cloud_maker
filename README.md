@@ -65,7 +65,7 @@ Apptainer may work locally as well, this has not be verified. Docker for sure do
   apptainer pull odm.sif docker://opendronemap/odm:latest
   apptainer build --sandbox odm_sandbox odm.sif
   ```
-  >**Note**: A sandbox is a full, uncompressed copy of the image, so it takes noticeably more disk space than the `.sif` - check you have room first (`df -h ~`). If the build command complains about permissions, retry with `--fakeroot` added. This shouldn't be a problem, however.
+  >**Note**: A sandbox is a full, uncompressed copy of the image, so it takes noticeably more disk space than the `.sif` - This shouldn't be a problem, however.
 
 > **Note:** [`py/auto_reconstruct.py`](py/auto_reconstruct.py) hardcodes the
 > path to the sandbox (`APPTAINER_IMAGE`) for the Apptainer/Linux case, since
@@ -89,18 +89,57 @@ You are now ready to run the pipeline using the BYU supercomputer! 🥳
 
 
 ### 2. Reconstruction: Photos to Point Cloud
->**Note**: 
+>**Notes**: Replace "username" with your username when it shows up in the instructions. These instructions are written for running on the BYU supercomputer. See the apendix for how to run files on the supercomputer. 
+
+Open the terminal and upload your photos folder to the supercomputer.
+Input your username and authentication code and then wait for the files to finish uploading.
+In the terminal, run “ssh username@ssh.rc.byu.edu”, and enter your password and authentication code. Now that you are in the supercomputer terminal, if you have already set up the file paths, run `nano /home/username/point_cloud/scjobs/auto_reconstruct.sh`. This will edit the script that runs the code to create the point cloud.  
+
+
+
+Edit the last part of the line second from the bottom (ex. /home/willicon/point_cloud/data/normandy) so that it reflects the path to your folder with the images. Press control + O and enter to save the file, and control + X to exit.  
+
+
+
+
+Run `cd /home/username/point_cloud/data/log_out`. This changes your file path to the folder that will hold all the files, showing the terminal output. 
+Run “=`sbatch /home/username/point_cloud/scjobs/auto_reconstruct.sh`. This will submit your job. It will say “Submitted batch job” and then the project number. If you want to follow the code output, use `tail -f reconstruct_#jobnumber.out``=. Run this in the same location you ran the sbatch line.  
+
+Once the process is running, you can edit the scjobs file to run another job.  
+
 ```
 python py/auto_reconstruct.py data/<project_name>
 ```
-
 Put your drone images in `data/<project_name>/`. This will:
 - Sort images into a `images/` subfolder
 - Run the OpenSfM reconstruction pipeline (feature detection, matching,
   reconstruction, undistortion, depthmap densification)
 - Produce `data/<project_name>/scene_dense.ply`
 
-### 2. Extraction — point cloud to buildings
+### 3. Extraction — point cloud to buildings
+>**Notes**: Since the process is similar to reconstuction, the following instructions are condensed. 
+
+In the supercomputer, run `cd /home/username/point_cloud/data/log_out` so that the outputs are in the correct folder. 
+
+Run `nano /home/username/point_cloud/scjobs/extract_buildings.sh` 
+
+
+
+
+Edit the last part of the line second from the bottom (ex. /home/willicon/point_cloud/data/normandy) so that it reflects the path to your folder with the images. Press control + O and enter to save the file, and control + X to exit.  
+
+
+
+
+Run `sbatch /home/username/point_cloud/scjobs/extract_buildings.sh` to submit your job. Wait for it to finish.  
+
+The .out file is in the form of “house_jobnumber.out 
+
+While it runs, you can edit the .sh file to run other jobs. 
+
+
+ 
+
 
 ```
 python py/ex_building_elev.py data/<project_name> --ground-cell-size 2.0 --ground-opening-span 20.0
@@ -121,7 +160,7 @@ This produces, in the folder `data/<project_name>/analysis_<project_name>_v1_4/`
 
 - Best images and Best cropped images are still a work in progress. Code works well if the picture is looking at the house from plan view, but not as well from the front of the house.
 - House segmenting still has problems. 
-- Synthetic floors aren't perfect yet. 
+- Synthetic floors aren't perfect yet, but they are better.
 
 
 ## Appendix
@@ -158,13 +197,16 @@ The BYU supercomputer uses `Slurm` commands to run it's jobs. Their [`documentat
 #### nano
 This command lets you edit files that are on the supercomputer.
 
+```
 nano /home/username/point_cloud/scjobs/auto_reconstruct.sh
+```
 
 #### sbatch
 This command runs the job commands on the supercomputer.
 
+```
 sbatch /home/username/point_cloud/scjobs/auto_reconstruct.sh
-
+```
 
 ### Useful Supercomputer Commands
 **Change File directory**
