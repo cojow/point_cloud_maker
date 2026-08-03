@@ -11,7 +11,7 @@ import argparse
 import shlex
 import numpy as np
 from resource_monitor import MemoryMonitor
-from reconstruction_leveling import level_reconstruction
+from reconstruction_leveling import level_reconstruction, read_dji_gimbal_attitude
 
 # Line-buffer stdout: when redirected to a file (e.g. a SLURM .out log),
 # Python block-buffers by default and only flushes at exit. If the job gets
@@ -140,6 +140,113 @@ def get_odm_opensfm_path(engine):
         f"if [ -f {KNOWN_OPENSFM_PATH} ]; then echo {KNOWN_OPENSFM_PATH}; "
         f"else find /code /usr -name opensfm -type f 2>/dev/null | grep bin | head -n 1; fi"
     )
+
+def _resolve_undistorted_shot_image(images_dir, undistorted_filename):
+    """undistorted/reconstruction.json's shot keys are the UNDISTORTED image's
+    OWN filename, which OpenSfM writes by appending its own '.jpg' onto the
+    ORIGINAL filename - confirmed against real project output:
+    'DJI_..._D.JPG' -> 'DJI_..._D.JPG.jpg' (also visible in any log's
+    "Pruning depthmap for image X.JPG.jpg" lines). The gimbal telemetry we
+    need lives in the original file in images_dir, not that undistorted copy
+    - recover it by trying the key as-is first (in case this convention ever
+    changes), then falling back to stripping one trailing '.jpg'/'.JPG'.
+    Returns a path that may not exist if neither form resolves; the caller's
+    normal not-found handling (read_dji_gimbal_attitude returns None) covers
+    that case the same way it always has."""
+    direct = os.path.join(images_dir, undistorted_filename)
+    if os.path.exists(direct):
+        return direct
+    if undistorted_filename.lower().endswith('.jpg'):
+        stripped = os.path.join(images_dir, undistorted_filename[:-4])
+        if os.path.exists(stripped):
+            return stripped
+    return direct
+
+def restrict_depthmap_shots(project_path, pitch_threshold):
+    """Temporarily strips non-nadir shots out of the UNDISTORTED dataset's own
+    reconstruction.json (undistorted/reconstruction.json) - the copy OpenSfM's
+    compute_depthmaps actually reads. compute_depthmaps iterates
+    reconstruction.shots.values() with no built-in way to restrict to a
+    subset, and its neighbor search whitelists candidates against that same
+    shots dict (confirmed against OpenSfM's own source: shots absent from it
+    are just skipped, not an error) - so removing shots here is exactly
+    equivalent to telling it "don't densify these, and don't use them as
+    neighbors for anyone else's depthmap either."
+
+    This is for a two-flight setup where a nadir pass is the actual point
+    cloud source and a separate oblique/frontal pass exists mainly to
+    photograph elevations for something else (e.g. an object detection
+    model) - those shots still need real poses (for cropping that photo
+    later), so they go through extract_metadata/detect_features/
+    match_features/reconstruct/undistort normally. They just never need to
+    become point-cloud points, and compute_depthmaps is the single most
+    expensive stage in the whole pipeline (resolution^2 per image) - so
+    skipping it for the shots that don't need it is a real, direct saving,
+    not a workaround.
+
+    The PROJECT-ROOT reconstruction.json (what extract_buildings_floor.py
+    reads for camera poses) is a completely separate file and is never
+    touched here.
+
+    Classifies by DJI gimbal pitch - reusing the same telemetry
+    reconstruction_leveling.py already reads for gravity correction - rather
+    than filename or folder, so it works regardless of how the two flights'
+    images happen to be named. A shot with no readable gimbal telemetry
+    (non-DJI drone, or tags missing) is kept rather than guessed away, since
+    silently losing coverage we can't classify is worse than leaving it in.
+
+    Returns (backup_bytes, n_kept, n_skipped). Pass backup_bytes to
+    restore_depthmap_shots afterward - always, success or failure - so the
+    project directory doesn't end up in a permanently-modified state."""
+    recon_path = os.path.join(project_path, 'undistorted', 'reconstruction.json')
+    images_dir = os.path.join(project_path, 'images')
+    if not os.path.exists(recon_path):
+        return None, 0, 0
+
+    with open(recon_path, 'rb') as f:
+        backup_bytes = f.read()
+    reconstruction = json.loads(backup_bytes)
+    recon = reconstruction[0]
+    shots = recon.get('shots', {})
+
+    kept = {}
+    n_skipped = 0
+    n_unclassifiable = 0
+    for filename, shot in shots.items():
+        attitude = read_dji_gimbal_attitude(_resolve_undistorted_shot_image(images_dir, filename))
+        if attitude is not None and attitude[1] > pitch_threshold:
+            n_skipped += 1              # pitch above threshold -> not near-nadir
+        else:
+            kept[filename] = shot       # near-nadir, or unclassifiable -> keep it
+            if attitude is None:
+                n_unclassifiable += 1
+    recon['shots'] = kept
+
+    # A shot only ends up here as "unclassifiable" if its source image
+    # couldn't be found/read at all - normally rare. If it's happening for
+    # most or all shots, something is silently defeating classification
+    # entirely (e.g. a path/filename mismatch) rather than genuinely lacking
+    # telemetry, and --depthmap-nadir-only will look like a no-op even though
+    # it ran - worth surfacing loudly rather than only in a quiet count.
+    if shots and n_unclassifiable / len(shots) > 0.5:
+        print(f"      [!] WARNING: {n_unclassifiable}/{len(shots)} shots were unclassifiable "
+              f"(no readable gimbal telemetry) and were kept as a safe default - if you expected "
+              f"most of these to be skipped, this flag likely isn't finding your source images "
+              f"correctly rather than genuinely lacking telemetry.")
+
+    with open(recon_path, 'w') as f:
+        json.dump(reconstruction, f, indent=4)
+    return backup_bytes, len(kept), n_skipped
+
+def restore_depthmap_shots(project_path, backup_bytes):
+    """Undoes restrict_depthmap_shots - always call this after
+    compute_depthmaps runs (success or failure) so undistorted/
+    reconstruction.json ends up back in its normal, complete state."""
+    if backup_bytes is None:
+        return
+    recon_path = os.path.join(project_path, 'undistorted', 'reconstruction.json')
+    with open(recon_path, 'wb') as f:
+        f.write(backup_bytes)
 
 def run_opensfm_steps(engine, steps, project_path, opensfm_bin):
     """Runs several OpenSfM steps inside ONE container invocation.
@@ -486,7 +593,20 @@ def main(args):
 
     # Phase 2: undistort + Lightweight OpenSfM Densification (Universal)
     print("\n--- Undistorting and running Lightweight OpenSfM Densification ---")
-    run_opensfm_steps(engine, ["undistort", "compute_depthmaps"], project_path, opensfm_bin)
+    if args.depthmap_nadir_only:
+        # Needs a Python-side hook between undistort and compute_depthmaps, so
+        # (unlike the default path) these can't be one batched container call.
+        run_opensfm_steps(engine, ["undistort"], project_path, opensfm_bin)
+        backup, n_kept, n_skipped = restrict_depthmap_shots(project_path, args.nadir_pitch_threshold)
+        print(f"      -> --depthmap-nadir-only: densifying {n_kept} near-nadir shot(s) "
+              f"(gimbal pitch <= {args.nadir_pitch_threshold}° or unclassifiable), "
+              f"skipping {n_skipped} oblique/frontal shot(s)")
+        try:
+            run_opensfm_steps(engine, ["compute_depthmaps"], project_path, opensfm_bin)
+        finally:
+            restore_depthmap_shots(project_path, backup)
+    else:
+        run_opensfm_steps(engine, ["undistort", "compute_depthmaps"], project_path, opensfm_bin)
     source_ply = os.path.join(project_path, 'undistorted', 'depthmaps', 'merged.ply')
 
     # Finalizing
@@ -614,6 +734,27 @@ if __name__ == "__main__":
                              "nearly every image is a candidate for nearly every other, which is why the "
                              "neighbor cap above is usually the more effective knob. Leave unset to keep "
                              "the existing config.yaml/OpenSfM default.")
+    parser.add_argument("--depthmap-nadir-only", action="store_true",
+                        help="For a two-flight setup (a near-nadir pass for the point cloud, plus a "
+                             "separate oblique/frontal pass shot mainly for something else, e.g. object "
+                             "detection training images) - skip compute_depthmaps for the frontal shots "
+                             "entirely, classified by DJI gimbal pitch. The frontal shots still get real "
+                             "camera poses (registered normally via reconstruct/undistort) for downstream "
+                             "photo cropping; they just never pay for densification, which is the single "
+                             "most expensive stage in the pipeline (cost scales with depthmap_resolution "
+                             "squared, PER IMAGE). Lets you raise --depthmap-resolution for the nadir set "
+                             "without that cost also landing on every frontal-flight image, whose pixels "
+                             "were never meant to become point-cloud points anyway. Requires DJI XMP "
+                             "gimbal telemetry in the images (same requirement as the leveling step) - "
+                             "shots without it are kept/densified rather than silently dropped.")
+    parser.add_argument("--nadir-pitch-threshold", type=float, default=-60.0,
+                        help="Gimbal pitch cutoff for --depthmap-nadir-only, in degrees (DJI convention: "
+                             "-90 = straight down, 0 = level). Shots with pitch AT OR BELOW this (i.e. "
+                             "steeper / more downward-looking than the cutoff) are treated as nadir and "
+                             "densified; shots above it (more level/oblique) are skipped. Default -60 "
+                             "assumes a clear separation between a near-nadir pass and a much more level "
+                             "frontal pass - check a few of your frontal images' actual GimbalPitchDegree "
+                             "if the two flights are closer together in pitch than that.")
     parser.add_argument("--ascii-ply", action="store_true",
                         help="Keep scene_dense.ply in OpenSfM's native ASCII format instead of converting "
                              "it to binary_little_endian. Conversion is on by default because it roughly "

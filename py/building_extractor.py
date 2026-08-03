@@ -24,7 +24,7 @@ import cv2
 import argparse
 from sklearn.cluster import DBSCAN, KMeans
 from scipy.spatial import Delaunay, KDTree
-from scipy.ndimage import binary_erosion, label, grey_opening, gaussian_filter, distance_transform_edt
+from scipy.ndimage import binary_erosion, label, grey_opening, grey_closing, gaussian_filter, distance_transform_edt
 from scipy.interpolate import RegularGridInterpolator
 from PIL import Image
 from PIL.ExifTags import GPSTAGS, TAGS
@@ -332,6 +332,32 @@ def apply_house_cookie_cutter(ag_pts, ag_colors, footprint_data, ground_model):
         if not occupied.all():
             _, nearest_idx = distance_transform_edt(~occupied, return_distances=True, return_indices=True)
             cell_max = cell_max[tuple(nearest_idx)]
+
+        # A foreign low object sitting inside the footprint (a parked car
+        # under an eave, a bush the alpha-shape happened to bulge over) is
+        # OCCUPIED, not empty - the fill above never touches it, and its own
+        # much-lower height goes straight into the volume/point-cloud output
+        # as if it were roof. Detect this as a small, deep LOCAL dip:
+        # grey_closing (dilate then erode) raises anything narrower than
+        # `closing_cells` up to its surroundings' local max, so subtracting
+        # the original from the closed version isolates exactly the cells
+        # that got pulled up - i.e. cells surrounded by much taller neighbors
+        # on most sides within that window. `closing_cells` is sized for a
+        # car (~5.4m); a real lower roof section (a garage wing, a one-story
+        # addition) is normally wider than that in both directions, so most
+        # of it survives untouched - only its border toward the taller
+        # section blurs slightly, an accepted, minor tradeoff of using a
+        # fixed-size morphological filter for this rather than a full
+        # connected-component analysis of what belongs to "the roof."
+        structure_m, dip_margin_m = 5.4, 1.0
+        closing_cells = max(3, int(round(structure_m / res)) | 1)  # odd size, so it's centered
+        closed = grey_closing(cell_max, size=closing_cells)
+        suspect = occupied & ((closed - cell_max) > dip_margin_m)
+        if suspect.any():
+            trustworthy = occupied & ~suspect
+            if trustworthy.any():
+                _, nearest_idx = distance_transform_edt(~trustworthy, return_distances=True, return_indices=True)
+                cell_max = np.where(suspect, cell_max[tuple(nearest_idx)], cell_max)
 
         grid_ix = np.clip(np.searchsorted(xs, valid_grid[:, 0], side='right') - 1, 0, nx_bins - 1)
         grid_iy = np.clip(np.searchsorted(ys, valid_grid[:, 1], side='right') - 1, 0, ny_bins - 1)
@@ -698,9 +724,35 @@ def process_reconstruction(args):
         # would reintroduce exactly the O(n^2) memory blowup that caused the
         # 360GB OOM crash this fixed-k query was originally written to solve.
         _, n_idx_l = tree.query(ag_pts[cand_idx], k=32, workers=-1)
-        z_v = ag_pts[n_idx_l][:, :, 2]
+        neighbor_xyz = ag_pts[n_idx_l]              # (n_cand, 32, 3)
+        z_v = neighbor_xyz[:, :, 2]
         is_bumpy = (np.ptp(z_v, axis=1) > 0.35) | (np.std(z_v, axis=1) > 0.08)
-        tree_mask[cand_idx[is_bumpy]] = True
+
+        # Z-range/std only sees vertical spread, so a patch of foliage that
+        # happens to be roughly level in Z (e.g. a manicured hedge top), or
+        # brown/dead branches that also fail the ExG color test above, can
+        # slip through the check above. A local 3D PLANARITY feature catches
+        # both regardless of color: reuses the SAME k=32 neighborhoods already
+        # fetched above (no extra KDTree pass), just using their full XYZ
+        # instead of only Z. For each candidate's neighborhood, decompose the
+        # 3x3 covariance into eigenvalues l1>=l2>=l3 (standard LIDAR
+        # ground/vegetation feature): a real roof surface is locally flat, so
+        # l3 (the "how far off the best-fit plane" axis) is close to zero and
+        # planarity=(l2-l3)/l1 is high; foliage scatters in all 3 directions
+        # (low planarity, high l3) and a branch is linear (l2~=l3, ALSO low
+        # planarity) - so this one test separates "sits on a hard flat
+        # surface" from either failure mode, without needing color at all.
+        # Threshold is a starting default, not empirically calibrated against
+        # a real project yet - check the printed count below against a known
+        # problem house before trusting it on a big batch.
+        centered = neighbor_xyz - neighbor_xyz.mean(axis=1, keepdims=True)
+        cov = np.einsum('nki,nkj->nij', centered, centered) / (centered.shape[1] - 1)
+        eigvals = np.linalg.eigvalsh(cov)           # ascending: l3, l2, l1
+        l3, l2, l1 = eigvals[:, 0], eigvals[:, 1], eigvals[:, 2]
+        planarity = np.divide(l2 - l3, l1, out=np.zeros_like(l1), where=l1 > 1e-9)
+        is_not_planar = planarity < 0.5
+
+        tree_mask[cand_idx[is_bumpy | is_not_planar]] = True
 
     pruned_ag_pcd = ag_pcd.select_by_index(np.where(~tree_mask)[0])
     ag_pts, ag_colors = np.asarray(pruned_ag_pcd.points), np.asarray(pruned_ag_pcd.colors)
