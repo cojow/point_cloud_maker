@@ -1,0 +1,10 @@
+train: /Users/willicon/Desktop/provo_oakhills_wasatch_seed15/images
+val: /Users/willicon/Desktop/provo_oakhills_wasatch_seed15/images
+
+# Classes
+names:
+  0: Apartment
+  1: Church
+  2: Commercial
+  3: Residential
+  4: School

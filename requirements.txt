@@ -8,3 +8,7 @@ opencv-python
 requests
 rasterio
 psutil
+
+
+#ultralytics         # For YOLOv8/YOLOv11 model training and inference
+#joblib              # For saving/loading the trained Random Forest models

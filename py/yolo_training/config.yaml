@@ -1,0 +1,15 @@
+path: /home/willicon/training/training_data #/home/willicon/training/data # #absolute path to file with images and labels
+train: training/images #Train Images (relative to path)
+val: validation/images
+#building_seed50_2025_10_30_083646/images # Validation images (relative to path)
+
+#clases (Include all classes given in classes.txt file, in the order given there. )
+names:
+  0: Apartment
+  1: Church
+  2: Commercial
+  3: Residential
+  4: School
+
+  #NOTE: MAKE SURE THE CLASSES FROM THE ANNOTATIONS ARE ALWAYS IN THE SAME ORDER. 
+  #if not, you'll be training the model incorreclty. 
