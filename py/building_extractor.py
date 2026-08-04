@@ -26,6 +26,8 @@ from sklearn.cluster import DBSCAN, KMeans
 from scipy.spatial import Delaunay, KDTree
 from scipy.ndimage import binary_erosion, label, grey_opening, grey_closing, gaussian_filter, distance_transform_edt
 from scipy.interpolate import RegularGridInterpolator
+from scipy.sparse import coo_matrix
+from scipy.sparse.csgraph import connected_components
 from PIL import Image
 from PIL.ExifTags import GPSTAGS, TAGS
 from pyproj import Transformer
@@ -376,6 +378,181 @@ def apply_house_cookie_cutter(ag_pts, ag_colors, footprint_data, ground_model):
     # back to world coordinates (see worker_extraction).
     return pcd, area, vol, len(floor_pts)
 
+# --- Vegetation-contamination review flag ---
+# Always computed (no CLI gate - always on, for every house, every run).
+#
+# check_vegetation_contamination() below is a WEAKER signal than originally
+# believed - keep this in mind before trusting it alone. It was built on the
+# assumption that contamination generally looks color-different from a
+# house's own roof material. Verified against two real, confirmed
+# contamination cases and found to be unreliable in both directions: on one
+# house, a large tree turned out to have ~23% of its points color-matching
+# the real roof closely enough to fool a brightness-based read of the same
+# scene (both directions - sunlit tree read as roof, shadowed roof read as
+# tree); on another, the actual contaminating cluster's color (160,135,122)
+# was nearly identical to the house's own roof average (160,129,128) - nothing
+# about it looked anomalous by color at all. So this check is kept as a
+# cheap, harmless SECOND opinion, not the primary signal - see
+# filter_disconnected_fragments() below and its call sites for the stronger,
+# validated one (how much of a candidate a 3D-connectivity pass had to
+# remove), which the final Needs_Review decision is actually anchored on.
+FLAG_SEED_PLANES = 2
+FLAG_Z_THRESHOLD = 2.5
+FLAG_MIN_FRACTION = 0.15
+FLAG_MIN_SEED_POINTS = 200
+
+def check_vegetation_contamination(pts, cols):
+    """Returns True if a large fraction of `pts`/`cols` (a house's own
+    above-ground points, WITHOUT its synthetic floor) doesn't color-match a
+    RANSAC-seeded sample of its own dominant roof material. Self-calibrated
+    per house rather than a fixed rule like the ExG color test in step 6,
+    but see the module-level comment above this function before trusting
+    it - color turned out to be an unreliable way to identify
+    contamination in general; this is a supplementary check, not the
+    primary one."""
+    if len(pts) < FLAG_MIN_SEED_POINTS:
+        return False
+
+    rem = pts.copy()
+    planes = []
+    for _ in range(FLAG_SEED_PLANES):
+        if occupied_area_sqft(rem[:, :2]) <= MIN_CANDIDATE_AREA_SQFT:
+            break
+        tmp = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(rem))
+        plane_model, inliers = tmp.segment_plane(0.25, 3, 250)
+        inlier_mask = np.zeros(len(rem), dtype=bool)
+        inlier_mask[inliers] = True
+        if occupied_area_sqft(rem[inlier_mask][:, :2]) < MIN_CANDIDATE_AREA_SQFT:
+            break
+        a, b, c, d = plane_model
+        planes.append((np.array([a, b, c]), d))
+        rem = rem[~inlier_mask]
+    if not planes:
+        return False
+
+    dists = np.stack([np.abs(pts @ n + d) for n, d in planes], axis=1)
+    seed_mask = dists.min(axis=1) < 0.3
+    if seed_mask.sum() < FLAG_MIN_SEED_POINTS:
+        return False
+
+    seed_cols = cols[seed_mask].astype(float)
+    mean_c, std_c = seed_cols.mean(axis=0), seed_cols.std(axis=0) + 1e-6
+    z = np.sqrt((((cols.astype(float) - mean_c) / std_c) ** 2).sum(axis=1))
+    return bool(np.mean(z > FLAG_Z_THRESHOLD) > FLAG_MIN_FRACTION)
+
+# --- Disconnected-fragment filter ---
+# Color and per-cell height/thickness were both tried and confirmed unsafe
+# as general contamination filters (see check_vegetation_contamination's
+# comment above, and grey_closing dip-filter's opposite-direction limits).
+# What's validated: 3D spatial connectivity. A tree pressed against a roof
+# doesn't have to be one big blob to matter - a real confirmed case turned
+# out to be ~40 separate small fragments that only looked like one cluster
+# when viewed by height alone, not by 3D adjacency. Real 3D connected-
+# components generalizes that "find the disconnected stuff" idea properly:
+# it finds every separate piece, of any size, anywhere in the point cloud,
+# rather than only the single biggest gap along one axis.
+#
+# The keep/discard rule is deliberately RELATIVE, not absolute: keep a
+# component if its own occupied area is at least MIN_COMPONENT_FRACTION of
+# the LARGEST component's area in this same candidate, discard the rest.
+# This was necessary, not just simpler - confirmed on two real candidates
+# that a component's absolute size can't tell "real secondary roof facet"
+# apart from "small foreign structure": one candidate's legitimate second
+# roof section (a real hip/wing, not touching the main roof closely enough
+# to be one component) was 43.4% of its largest component's area; another
+# candidate's contamination - a NEIGHBOR'S SHED, bridged into this
+# candidate's footprint by a connecting tree during DBSCAN clustering, not
+# just noise - was 4.8% of its largest. A threshold anywhere from 5% to 30%
+# separates those two correctly; MIN_COMPONENT_FRACTION=0.10 sits in the
+# middle of that margin.
+#
+# What this does NOT solve: a tree that's genuinely 3D-connected to the
+# real roof (touching/overlapping in the reconstruction, not just nearby)
+# survives as part of the same largest component - confirmed on the same
+# real "massive tree" case, where this stage alone recovers the roof from
+# 100% contaminated down to 87%, not further. That residual case has no
+# known safe automatic fix yet (see the Needs_Review wiring at each call
+# site) - it needs a human to look at it.
+CONNECT_RADIUS = 0.15
+MIN_COMPONENT_FRACTION = 0.10
+
+# How much of a candidate filter_disconnected_fragments has to remove before
+# that removal itself counts as review-worthy evidence, independent of the
+# color check. Calibrated against the same two real cases as the fraction
+# above: a fully-resolved candidate needed only ~3.3% removed (comfortably
+# below), a candidate with a KNOWN unresolved remainder (a tree genuinely
+# touching the roof, not just nearby) needed ~13% (comfortably above) -
+# 0.05 sits in the middle of that margin.
+STAGE1_REVIEW_FRACTION = 0.05
+
+def filter_disconnected_fragments(pts, radius=CONNECT_RADIUS, min_fraction=MIN_COMPONENT_FRACTION):
+    """3D connected-components at `radius`; keeps only components whose own
+    occupied area is at least `min_fraction` of the largest component's
+    area. Returns a boolean keep-mask the same length as `pts`."""
+    n = len(pts)
+    if n < 10:
+        return np.ones(n, dtype=bool)
+    tree = KDTree(pts)
+    pairs = tree.query_pairs(r=radius, output_type='ndarray')
+    if len(pairs) == 0:
+        return np.ones(n, dtype=bool)
+    adj = coo_matrix((np.ones(len(pairs)), (pairs[:, 0], pairs[:, 1])), shape=(n, n))
+    n_comp, labels = connected_components(adj, directed=False)
+    if n_comp <= 1:
+        return np.ones(n, dtype=bool)
+    areas = np.array([occupied_area_sqft(pts[labels == lbl][:, :2]) for lbl in range(n_comp)])
+    max_area = areas.max()
+    if max_area <= 0:
+        return np.ones(n, dtype=bool)
+    keep_labels = np.where(areas >= min_fraction * max_area)[0]
+    return np.isin(labels, keep_labels)
+
+def recompute_area_volume(pts, floor_z, res=0.6):
+    """Recomputes (area, volume) the same way apply_house_cookie_cutter's
+    internal grid does - per-cell MAX height, the same grey_closing dip
+    filter, nearest-fill for empty cells - generalized to rerun after
+    filter_disconnected_fragments removes some of a candidate's points,
+    using the SURVIVING points' own XY extent as the effective footprint
+    rather than needing the original alpha-shape polygon (which no longer
+    matches once points have been removed from inside it). Returns
+    (area_m2, vol_m3) - RAW units, matching apply_house_cookie_cutter's own
+    return convention, so callers apply the same *10.76/*35.31 sqft/cuft
+    conversion regardless of which function produced the numbers."""
+    if len(pts) == 0:
+        return 0.0, 0.0
+    mins, maxs = pts[:, :2].min(axis=0), pts[:, :2].max(axis=0)
+    cell_a = res ** 2
+    xs, ys = np.arange(mins[0], maxs[0], res), np.arange(mins[1], maxs[1], res)
+    if len(xs) < 2 or len(ys) < 2:
+        return 0.0, 0.0
+    nx_bins, ny_bins = len(xs), len(ys)
+
+    fx_idx = np.clip(np.searchsorted(xs, pts[:, 0], side='right') - 1, 0, nx_bins - 1)
+    fy_idx = np.clip(np.searchsorted(ys, pts[:, 1], side='right') - 1, 0, ny_bins - 1)
+    flat_idx = fx_idx * ny_bins + fy_idx
+
+    cell_max = np.full(nx_bins * ny_bins, -np.inf)
+    np.maximum.at(cell_max, flat_idx, pts[:, 2])
+    cell_max = cell_max.reshape(nx_bins, ny_bins)
+    occupied = np.isfinite(cell_max)
+    area_m2 = occupied.sum() * cell_a
+
+    if not occupied.all():
+        _, nearest_idx = distance_transform_edt(~occupied, return_distances=True, return_indices=True)
+        cell_max = cell_max[tuple(nearest_idx)]
+
+    closing_cells = max(3, int(round(5.4 / res)) | 1)
+    closed = grey_closing(cell_max, size=closing_cells)
+    suspect = occupied & ((closed - cell_max) > 1.0)
+    if suspect.any():
+        trustworthy = occupied & ~suspect
+        if trustworthy.any():
+            _, nearest_idx = distance_transform_edt(~trustworthy, return_distances=True, return_indices=True)
+            cell_max = np.where(suspect, cell_max[tuple(nearest_idx)], cell_max)
+
+    vol_m3 = float(np.sum(cell_a * np.maximum(0, cell_max[occupied] - floor_z)))
+    return area_m2, vol_m3
+
 def load_opensfm_camera(reconstruction, image_filename):
     """Takes an already-parsed reconstruction.json dict (reconstruction[0], not
     the file path) - this used to open and JSON-parse the file fresh on every
@@ -561,7 +738,45 @@ def worker_extraction(args):
                 pts_arr[-n_floor:, 2] = pts_arr[-n_floor:, 2].mean()
                 p.points = o3d.utility.Vector3dVector(pts_arr)
 
-            z_vals = np.asarray(p.points)[:, 2]
+            all_pts = np.asarray(p.points)
+            all_cols = np.asarray(p.colors)
+            ag_only_pts = all_pts[:-n_floor] if n_floor > 0 else all_pts
+            ag_only_cols = all_cols[:-n_floor] if n_floor > 0 else all_cols
+
+            # Disconnected-fragment filter (see filter_disconnected_fragments'
+            # comment above): drops any part of this candidate that isn't 3D-
+            # connected to its own dominant structure at a meaningful scale -
+            # floating debris, or a neighboring building bridged in by a
+            # connecting tree during the DBSCAN clustering above. Only
+            # recompute area/volume (an extra grid pass) when it actually
+            # removed something, and only when there's a known floor_z to
+            # measure height above (n_floor==0 is a rare degenerate case with
+            # no floor reference at all - left on the pre-filter numbers).
+            stage1_removed_frac = 0.0
+            if n_floor > 0:
+                floor_pts, floor_cols = all_pts[-n_floor:], all_cols[-n_floor:]
+                floor_z = floor_pts[0, 2]  # uniform by construction
+                keep_frag = filter_disconnected_fragments(ag_only_pts)
+                stage1_removed_frac = 1.0 - keep_frag.mean() if len(keep_frag) else 0.0
+                if stage1_removed_frac > 0:
+                    ag_only_pts, ag_only_cols = ag_only_pts[keep_frag], ag_only_cols[keep_frag]
+                    all_pts = np.vstack([ag_only_pts, floor_pts])
+                    all_cols = np.vstack([ag_only_cols, floor_cols])
+                    p = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(all_pts))
+                    p.colors = o3d.utility.Vector3dVector(all_cols)
+                    a, v = recompute_area_volume(ag_only_pts, floor_z)
+
+            # Needs_Review combines two independent signals: the (weak, see
+            # comment above check_vegetation_contamination) color-distance
+            # check, OR'd with a validated one - a meaningful fraction of
+            # this candidate having needed removal above is itself evidence
+            # something was going on here, whether or not this stage fully
+            # resolved it (it can't always - see filter_disconnected_
+            # fragments' comment on the touching-tree case it doesn't catch).
+            needs_review = (check_vegetation_contamination(ag_only_pts, ag_only_cols)
+                             or stage1_removed_frac > STAGE1_REVIEW_FRACTION)
+
+            z_vals = all_pts[:, 2]
             # 99th percentile instead of max: a single stray noise point
             # above the real roofline (a bird, a reflection artifact) would
             # otherwise inflate height directly - and height feeds the
@@ -576,7 +791,7 @@ def worker_extraction(args):
 
             ratio = area_sqft / height_ft if height_ft > 0 else 0
 
-            cent = np.mean(np.asarray(p.points), axis=0)
+            cent = all_pts.mean(axis=0)
             gx, gy = cent[0] + g_off[0], cent[1] + g_off[1]
 
             temp_uid = f"H_{abs(gx):.3f}_{abs(gy):.3f}".replace('.', 'd')
@@ -605,9 +820,194 @@ def worker_extraction(args):
                 "X_coord": gx,
                 "Y_coord": gy,
                 "Original_Image": orig_img_name,
-                "corners_3d": corners_3d.tolist()
+                "corners_3d": corners_3d.tolist(),
+                "Needs_Review": needs_review
             })
     return houses
+
+# --- Footprint-overlap merge ---
+# A large or architecturally complex building (a church, a commercial
+# building - anything with more roof facets than a typical house) can get
+# split into several separate "houses" here: the RANSAC-plane loop above
+# extracts one facet at a time, DBSCAN then clusters all of a blob's
+# extracted facets by 2D proximity (eps=2.0m), and each resulting cluster
+# becomes its own independent candidate with its own alpha-shape footprint.
+# For a building whose facets are legitimately more than 2m apart in places
+# (a nave, a transept, a tower), that's several honest candidates for what
+# is structurally one building. Confirmed directly against a real
+# extraction: three "houses" from the same run had footprints that
+# literally overlapped in XY - physically impossible for separate
+# buildings - so overlap is treated here as a near-unambiguous merge signal,
+# safer than a blanket adjacency/distance rule that risks merging
+# legitimately separate, closely-spaced buildings instead.
+def _xy_bounds(corners_3d):
+    c = np.asarray(corners_3d)
+    return c[:, 0].min(), c[:, 0].max(), c[:, 1].min(), c[:, 1].max()
+
+def _boxes_overlap(b1, b2, buffer=1.0):
+    """AABB overlap/near-touch test with a small buffer, so two fragments
+    separated by only a thin gap (e.g. right at DBSCAN's eps boundary)
+    still merge, not just ones that already intersect outright."""
+    x1min, x1max, y1min, y1max = b1
+    x2min, x2max, y2min, y2max = b2
+    return (x1min - buffer < x2max) and (x2min - buffer < x1max) and \
+           (y1min - buffer < y2max) and (y2min - buffer < y1max)
+
+def merge_overlapping_footprints(raw_res, out_dir, ground_model, g_off):
+    """Groups raw_res candidates whose XY bounding boxes overlap (via
+    union-find, same pattern as the erosion-core fragment reconciliation
+    earlier in the pipeline) and replaces each group of 2+ with ONE
+    recombined candidate: reloads each fragment's already-written .ply,
+    strips each one's own synthetic floor (they're independently computed
+    per-fragment and would conflict), re-traces a single alpha-shape
+    footprint over the combined roof/wall points, and reruns
+    apply_house_cookie_cutter on that - reusing the exact same area/volume/
+    dip-filter machinery a normal single-building candidate goes through,
+    rather than approximating the merge by just summing the fragments'
+    numbers (which would double-count the overlapping region)."""
+    if len(raw_res) < 2:
+        return raw_res
+
+    bounds = [_xy_bounds(r["corners_3d"]) for r in raw_res]
+    n = len(raw_res)
+    parent = list(range(n))
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+    def union(i, j):
+        ri, rj = find(i), find(j)
+        if ri != rj:
+            parent[ri] = rj
+
+    for i in range(n):
+        for j in range(i + 1, n):
+            if _boxes_overlap(bounds[i], bounds[j]):
+                union(i, j)
+
+    groups = {}
+    for i in range(n):
+        groups.setdefault(find(i), []).append(i)
+
+    output = []
+    merged_count = 0
+    for idxs in groups.values():
+        if len(idxs) == 1:
+            output.append(raw_res[idxs[0]])
+            continue
+
+        members = [raw_res[i] for i in idxs]
+        print(f"      -> merging {len(members)} overlapping-footprint fragments "
+              f"({', '.join(m['temp_ID'] for m in members)}) into one building")
+
+        ag_pts_list, ag_cols_list = [], []
+        for m in members:
+            ply_path = os.path.join(out_dir, "individual_houses", f"{m['temp_ID']}.ply")
+            if not os.path.exists(ply_path):
+                continue
+            frag = o3d.io.read_point_cloud(ply_path)
+            fpts, fcols = np.asarray(frag.points), np.asarray(frag.colors)
+            # This fragment's own synthetic floor: uniform [0.4]*3 gray,
+            # same invariant apply_house_cookie_cutter always produces -
+            # strip it, since a single new floor gets computed below for
+            # the merged footprint instead.
+            is_floor = np.all(np.abs(fcols - 0.4) < 0.01, axis=1)
+            ag_pts_list.append(fpts[~is_floor])
+            ag_cols_list.append(fcols[~is_floor])
+
+        if not ag_pts_list:
+            output.extend(members)
+            continue
+
+        combined_pts = np.vstack(ag_pts_list)
+        combined_cols = np.vstack(ag_cols_list)
+
+        footprint = calculate_alpha_shape(combined_pts[:, :2])
+        if not footprint:
+            output.extend(members)
+            continue
+        res = apply_house_cookie_cutter(combined_pts, combined_cols, footprint, ground_model)
+        if not res:
+            output.extend(members)
+            continue
+        p, a, v, n_floor = res
+
+        # Unlike worker_extraction, these fragments are already in world
+        # coordinates (written out post-un-rotate/translate) - no leveling
+        # transform to undo here, and cookie-cutter's floor is already a
+        # single flat value by construction, so no re-flattening needed.
+        all_pts = np.asarray(p.points)
+        all_cols = np.asarray(p.colors)
+        ag_only_pts = all_pts[:-n_floor] if n_floor > 0 else all_pts
+        ag_only_cols = all_cols[:-n_floor] if n_floor > 0 else all_cols
+
+        # Same disconnected-fragment filter as worker_extraction - a merge
+        # combines several fragments' points, so it's worth another pass in
+        # case the union isn't as clean as each fragment looked alone.
+        stage1_removed_frac = 0.0
+        if n_floor > 0:
+            floor_pts, floor_cols = all_pts[-n_floor:], all_cols[-n_floor:]
+            floor_z = floor_pts[0, 2]
+            keep_frag = filter_disconnected_fragments(ag_only_pts)
+            stage1_removed_frac = 1.0 - keep_frag.mean() if len(keep_frag) else 0.0
+            if stage1_removed_frac > 0:
+                ag_only_pts, ag_only_cols = ag_only_pts[keep_frag], ag_only_cols[keep_frag]
+                all_pts = np.vstack([ag_only_pts, floor_pts])
+                all_cols = np.vstack([ag_only_cols, floor_cols])
+                p = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(all_pts))
+                p.colors = o3d.utility.Vector3dVector(all_cols)
+                a, v = recompute_area_volume(ag_only_pts, floor_z)
+
+        needs_review = (check_vegetation_contamination(ag_only_pts, ag_only_cols)
+                         or stage1_removed_frac > STAGE1_REVIEW_FRACTION)
+
+        z_vals = all_pts[:, 2]
+        height_m = np.percentile(z_vals, 99) - z_vals.min()
+        height_ft = height_m * 3.28084
+        area_sqft = a * 10.76
+        vol_cuft = v * 35.31
+        ratio = area_sqft / height_ft if height_ft > 0 else 0
+
+        cent = all_pts.mean(axis=0)
+        gx, gy = cent[0] + g_off[0], cent[1] + g_off[1]
+        merged_uid = f"MERGED_{abs(gx):.3f}_{abs(gy):.3f}".replace('.', 'd')
+        corners_3d = np.asarray(p.get_axis_aligned_bounding_box().get_box_points())
+
+        o3d.io.write_point_cloud(os.path.join(out_dir, "individual_houses", f"{merged_uid}.ply"), p)
+
+        # Best_Image for the merged candidate: copy the largest fragment's
+        # photo as a placeholder. Step 10 re-derives the real best photo
+        # from scratch for every house using the (now merged) corners_3d/
+        # centroid regardless, so this only matters if step 10 is skipped.
+        biggest = max(members, key=lambda m: m["Area_sqft"])
+        src_img = os.path.join(out_dir, "best_images", f"{biggest['temp_ID']}.jpg")
+        if os.path.exists(src_img):
+            shutil.copy2(src_img, os.path.join(out_dir, "best_images", f"{merged_uid}.jpg"))
+
+        for m in members:
+            for sub, ext in [("individual_houses", "ply"), ("best_images", "jpg")]:
+                p_old = os.path.join(out_dir, sub, f"{m['temp_ID']}.{ext}")
+                if os.path.exists(p_old):
+                    os.remove(p_old)
+
+        output.append({
+            "temp_ID": merged_uid,
+            "Area_sqft": round(area_sqft, 2),
+            "Volume_cuft": round(vol_cuft, 2),
+            "Height_ft": round(height_ft, 2),
+            "Ratio_Area_to_Height": round(ratio, 2),
+            "X_coord": gx,
+            "Y_coord": gy,
+            "Original_Image": "N/A",
+            "corners_3d": corners_3d.tolist(),
+            "Needs_Review": needs_review,
+        })
+        merged_count += 1
+
+    print(f"      -> {merged_count} overlapping-footprint group(s) merged; "
+          f"{len(output)} candidates remain (was {len(raw_res)})")
+    return output
 
 # --- 4. MASTER PIPELINE ---
 def process_reconstruction(args):
@@ -877,6 +1277,9 @@ def process_reconstruction(args):
             if res_list: raw_res.extend(res_list)
     print(f"      -> Extraction produced {len(raw_res)} raw building candidates in {time.time()-phase_start:.1f}s")
 
+    print("      -> Checking for overlapping-footprint fragments (large/complex buildings)...")
+    raw_res = merge_overlapping_footprints(raw_res, out, ground_model, g_off)
+
     print("\n[9/10] Artifact Purge & Sequential Georeferencing...")
     final_measurements = []
     lookup_table = []
@@ -922,7 +1325,8 @@ def process_reconstruction(args):
                     "Volume_cuft": r["Volume_cuft"],
                     "Height_ft": r["Height_ft"],
                     "Ratio_Area_to_Height": r["Ratio_Area_to_Height"],
-                    "Best_Image": new_img_path if os.path.exists(new_img_path) else "N/A"
+                    "Best_Image": new_img_path if os.path.exists(new_img_path) else "N/A",
+                    "Needs_Review": r.get("Needs_Review", False)
                 })
 
                 lookup_table.append({
@@ -993,7 +1397,7 @@ def process_reconstruction(args):
 
     measurements_path = os.path.join(out, "measurements.csv")
     with open(measurements_path, 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=["house_ID", "Area_sqft", "Volume_cuft", "Height_ft", "Ratio_Area_to_Height", "Best_Image"])
+        writer = csv.DictWriter(f, fieldnames=["house_ID", "Area_sqft", "Volume_cuft", "Height_ft", "Ratio_Area_to_Height", "Best_Image", "Needs_Review"])
         writer.writeheader()
         writer.writerows(final_measurements)
     print(f"      -> Measurements written to: {measurements_path}")
