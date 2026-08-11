@@ -19,12 +19,11 @@
 module load apptainer
 
 # 2. Activate Python environment (if necessary)
-# source /path/to/your/venv/bin/activate
+source ~/miniconda3/bin/activate yolomodel_v_1
 
 # 3. Run the pipeline
 echo "Starting ODM Reconstruction pipeline..."
-python /home/willicon/point_cloud/py/auto_reconstruct.py /home/willicon/point_cloud/data/fir_cir --depthmap-method PATCH_MATCH_SAMPLE --depthmap-resolution 640 --matching-gps-neighbors 25 --cleanup
-
+python /home/willicon/point_cloud/py/auto_reconstruct.py /home/willicon/point_cloud/data/fir_cir
 # Densification tuning levers (all optional - omitting a flag leaves that
 # setting at whatever's already in config.yaml/OpenSfM's own default, which
 # may be a leftover override from a PREVIOUS experiment on this same project

@@ -24,6 +24,6 @@ source ~/miniconda3/bin/activate yolomodel_v_1
 # Make sure your python script name matches what you uploaded.
 echo "Starting Open3D extraction job..."
 
-python /home/willicon/point_cloud/py/building_extractor.py /home/willicon/point_cloud/data/walnut_all --ground-cell-size 2.0 --ground-opening-span 20.0
+python /home/willicon/point_cloud/py/building_extractor.py /home/willicon/point_cloud/data/walnut_all
 
 echo "Job finished."

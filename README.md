@@ -142,19 +142,68 @@ While it runs, you can edit the .sh file to run other jobs.
 
 
 ```
-python py/ex_building_elev.py data/<project_name> --ground-cell-size 2.0 --ground-opening-span 20.0
+python py/building_extractor.py data/<project_name>
 ```
 
-- `ground-cell-size` size of each ground cell when creating the synthetic ground used to identify buildings. 
-- `--ground-opening-span` How dense the surface created is. 
-- The Defauts for each of theses should be acceptable.
+All the tunable settings live in [`py/config.yml`](py/config.yml) now, not command-line flags - `nano py/config.yml` before submitting a job to change any of them (see the comments in that file for what each one does and, where relevant, what a real run showed about picking a good value). The defaults there should be acceptable for a first run. Briefly:
+- `ground_model.cell_size` / `ground_model.opening_span` - resolution and reach of the synthetic ground surface used to identify buildings. `opening_span` must be wider than a normal building's footprint or roofs get misread as ground.
+- `ground_model.relevel` - only for point clouds that did NOT go through the updated `auto_reconstruct.py`.
+- `vehicle_rejection.reject_small_structures` (off by default) drops `Possible_Vehicle` candidates
+  (small/short enough they might be a parked car) from the output entirely,
+  instead of just flagging them for review. **Warning:** no test found so far
+  can tell a parked car apart from a small legitimate structure (shed, small
+  garage) by geometry alone - turning this on WILL also remove some real small
+  buildings. Only use it if you'd rather lose those than manually discard cars
+  from `measurements.csv`. Either way, check the remaining rows: `Needs_Review`
+  flags likely vegetation contamination, `Possible_Vehicle` flags rows that
+  might still be a car (always present unless `reject_small_structures` is
+  used, in which case anything it would have flagged is gone instead).
+- `imagery.nadir_pitch_threshold` - splits source photos into the nadir/oblique
+  views described below. **Not universal** - confirmed the right value depends
+  on how the site was actually flown (see that view's own section for a real
+  example where the default is wrong).
+- `performance.ransac_max_fit_points` - a speed/quality knob for messy sites
+  with oversized or multi-building candidates; the default is validated but
+  untested below the low tens of thousands.
+
+If you want a different config for a specific project instead of editing
+`py/config.yml` in place, save your own copy anywhere and pass
+`--config /path/to/your.yml`.
 
 This produces, in the folder `data/<project_name>/analysis_<project_name>_v1_4/` the following:
-- `measurements.csv` — area (sqft), volume (cuft), height (ft) per building
-- `location_lookup.csv` — UTM + lat/lon per building
+- `measurements.csv` — one row per building: area (sqft), volume (cuft),
+  height (ft), UTM + lat/lon location, source image references, and two
+  review flags (`Needs_Review` for likely vegetation contamination,
+  `Possible_Vehicle` for candidates small/short enough that they might be a
+  parked car rather than a building - neither flag deletes anything, both
+  just mark rows worth a manual look). Source photos come in two views,
+  each with its own three columns following the same `{View}_Best_Image` /
+  `{View}_Original_Image` / `{View}_Image_Precision_Cropped` pattern:
+  - `Nadir_*` — straight-down (DJI gimbal pitch at or steeper than
+    `imagery.nadir_pitch_threshold` in `config.yml`, default -75°)
+  - `Oblique_*` — the shallower of the site's two survey passes, if it has
+    one - not a true side-on elevation shot, but steep enough to still show
+    real wall/facade detail a nadir shot can't. **The default -75° threshold
+    is not universal** - confirmed on the Blockall dataset (two passes,
+    splitting cleanly around -75°) but confirmed WRONG on the fir dataset,
+    whose steepest pass only reaches -72° - with the default threshold every
+    single fir image gets classified as oblique and none as nadir. Check the
+    "Indexed N nadir + M oblique" line in a run's log against what you
+    actually expect before trusting either view on a new site, and adjust
+    `imagery.nadir_pitch_threshold` in the config if it looks wrong.
+
+  `{View}_Image_Precision_Cropped` says whether that view's `Best_Image`/
+  `Original_Image` is a verified precision crop (projected from the
+  building's real 3D footprint into a registered photo) or just the
+  closest-by-GPS fallback photo, uncropped and unverified - only trust the
+  image as accurate when this is `True`. Oblique has no fallback at all: if
+  precision cropping fails for that view, `Oblique_Best_Image` is `N/A` and
+  there's no oblique photo for that building.
 - `individual_houses/` — per-building `.ply` point clouds
-- `best_images/` and `best_images_cropped/` — the nearest source photo for
-  each building, and a version cropped to just that building
+- `best_images/` and `best_images_cropped/` — source photos and crops for
+  each building, one pair per view (`{house_ID}_nadir.jpg` /
+  `{house_ID}_oblique.jpg`) - a cropped file only exists when that view's
+  `Image_Precision_Cropped` is `True`
 
 ## Known issues / in progress
 

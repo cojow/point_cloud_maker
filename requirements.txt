@@ -8,6 +8,7 @@ opencv-python
 requests
 rasterio
 psutil
+pyyaml
 
 
 #ultralytics         # For YOLOv8/YOLOv11 model training and inference

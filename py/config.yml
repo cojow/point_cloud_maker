@@ -1,0 +1,57 @@
+# building_extractor.py configuration.
+#
+# Edit this file (nano config.yml) before submitting a job to tune any of
+# these per-dataset - no code changes or new CLI flags needed. Point the
+# script at a different copy with --config /path/to/other.yml if you want
+# per-project configs instead of editing this one in place; any section or
+# key you leave out falls back to the default shown here.
+
+ground_model:
+  # Grid cell size in meters for the local ground contour model. Smaller =
+  # more detail but noisier; larger = smoother but coarser.
+  cell_size: 2.0
+
+  # Morphological opening span in meters - must be wider than a normal
+  # building's footprint, or the ground model reads roofs as ground.
+  # Buildings wider than this are still handled (see the bounded oversized-
+  # roof rescue in LocalGroundModel) as long as they're under ~5x this span;
+  # anything bigger than that is treated as terrain/street, not a building.
+  opening_span: 20.0
+
+vehicle_rejection:
+  # Drop Possible_Vehicle candidates (see max_area_sqft/max_height_ft below)
+  # from the output entirely instead of just flagging them for review. Off
+  # by default. No geometric test found so far can tell a parked car apart
+  # from a small legitimate structure (shed, small garage) - turning this on
+  # accepts that tradeoff and removes both.
+  reject_small_structures: True
+
+  # A candidate under BOTH of these is flagged Possible_Vehicle (and dropped
+  # entirely if reject_small_structures is true). Calibrated against real
+  # confirmed cars on the Blockall dataset - comfortably above every
+  # confirmed car seen there, but this is a site-specific guess, not a
+  # validated universal threshold.
+  max_area_sqft: 800.0
+  max_height_ft: 16.0
+
+imagery:
+  # DJI GimbalPitchDegree cutoff used to split source photos into nadir
+  # (straight down, pitch <= this) vs oblique (pitch > this) for the two
+  # best-image crops per building. Tune this per flight - it's not
+  # universal: Blockall's two survey passes split cleanly at -75, but a
+  # shallower flight (e.g. the fir dataset, whose steepest pass only reaches
+  # -72) may need something like -55 instead to get a meaningful split at
+  # all. Check the "Indexed N nadir + M oblique" line in a run's log (or
+  # inspect gimbal pitch across the images/ folder directly) before trusting
+  # this on a new site.
+  nadir_pitch_threshold: -65.0
+
+performance:
+  # Caps how many points a single RANSAC plane fit (in the per-candidate
+  # roof-plane-peeling step) searches against. Below this, behavior is
+  # unchanged; above it, the plane is fit on a random subsample this size
+  # and applied to the full point set for the actual inlier check - a real
+  # run confirmed this matters on messy/oversized candidates (636s for 18
+  # candidates before this cap existed). Lower = faster on messy sites, but
+  # untested below the low tens of thousands.
+  ransac_max_fit_points: 50000
