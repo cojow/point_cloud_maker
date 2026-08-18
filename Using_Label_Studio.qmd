@@ -3,6 +3,59 @@ title: "Using Label Studio"
 format: html
 ---
 
+Label Studio is an annotating software that runs on your computer that will
+allow you to annotate images.
+
+## Installation
+
+### Install conda (or use another environment manager)
+
+- [macOS](https://docs.conda.io/projects/conda/en/stable/user-guide/install/macos.html)
+- [Windows](https://docs.conda.io/projects/conda/en/stable/user-guide/install/windows.html)
+
+### Create an environment with a Python version that works
+
+In your terminal, run the following:
+
+```bash
+conda create -n label_studio python=3.11
+```
+
+### Activate the environment
+
+Run:
+
+```bash
+conda activate label_studio
+```
+
+### Make sure pip is installed
+
+Run:
+
+```bash
+conda install pip
+```
+
+### Install Label Studio
+
+Run:
+
+```bash
+pip install label-studio
+```
+
+### Start the app
+
+Run:
+
+```bash
+label-studio
+```
+
+> **Note:** Press <kbd>Control</kbd> + <kbd>C</kbd> in the terminal to quit the
+> application.
+
 ## Getting Started
 
 Set up an account when you first run the program.
