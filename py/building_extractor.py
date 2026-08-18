@@ -782,65 +782,109 @@ def load_opensfm_camera(reconstruction, image_filename):
 
     return rvec, tvec, camera_matrix, dist_coeffs, w, h
 
-# How many GPS-nearest candidate photos to try per house before giving up on a
-# precision crop. Picking on GPS proximity alone (the old behavior) doesn't
-# check that a photo was actually registered by OpenSfM, or that the house's
-# footprint lands anywhere inside that photo's frame - either miss produced a
-# real crop failure ("not found in reconstruction data" / an empty-slice
-# imwrite assertion). Trying a handful of nearby candidates in distance order
-# and taking the first one that clears both checks fixes both failure modes
-# without having to guess in advance which single photo will work.
-K_SOURCE_IMAGE_CANDIDATES = 8
-
 def project_house_into_image(corners_3d, pose, padding=60):
-    """Projects a house's 3D bounding box into one photo and returns the
-    padded, frame-clamped crop box - or None if the house doesn't actually
-    fall inside this photo (the two land entirely apart, e.g. the photo was
-    the nearest by GPS position but pointed the wrong way, or the drone was
-    just passing by). Returning None here, rather than clamping to a
-    zero-or-negative-size box, is what lets the caller move on to the next
-    candidate instead of handing an empty slice to cv2.imwrite."""
+    """Projects a house's 3D bounding box into one photo. Returns
+    (crop_box, visible_area): crop_box is the padded, frame-clamped
+    (x_min, y_min, x_max, y_max) ready to hand to cv2, and visible_area is
+    the pixel area of the UNPADDED projected box that actually lands inside
+    the frame - used by find_best_registered_image to rank candidate photos
+    by how prominently they frame the house, not just whether they frame it
+    at all. Returns (None, 0.0) if the house's footprint doesn't land inside
+    this photo at all (e.g. the photo was GPS-near but pointed elsewhere),
+    or if any corner of the box is behind the camera (negative depth) - a
+    pinhole projection doesn't fail cleanly for points behind the lens, it
+    produces wild garbage pixel coordinates (confirmed directly: one real
+    case projected a corner to ~5e20), and those can spuriously clip into
+    frame bounds and register as a huge, "prominent" match. A real,
+    in-front-of-camera photo of the whole building can't have any of its own
+    corners behind the lens, so this rejects the candidate outright rather
+    than trust a projection that's partly not physically meaningful.
+
+    Also rejects corners that are technically in front of the camera but
+    far outside its actual field of view. Positive depth alone doesn't mean
+    "in the shot" - a point 60+ degrees off the optical axis still has
+    positive depth. cv2's polynomial distortion model isn't calibrated that
+    far out and can fold such a point back into frame-bounded pixel
+    coordinates that look like a real (if narrow) match. Confirmed directly
+    on the fir dataset: a house 60+ degrees off-axis against this camera's
+    own ~32 degree half-FOV still produced a "successful" crop - a 72px-wide
+    sliver of unrelated content. The bound below is derived from each
+    camera's own intrinsics (how far its own frame edge sits in normalized
+    coordinates), not a hardcoded angle, so it scales correctly across
+    different cameras/resolutions; the 1.5x margin allows real subjects
+    legitimately near the frame edge without accepting 60+ degree outliers."""
     rvec, tvec, K, dist, w, h = pose
-    corners_2d, _ = cv2.projectPoints(np.array(corners_3d), rvec, tvec, K, dist)
+    corners_3d = np.asarray(corners_3d)
+    rot_mat, _ = cv2.Rodrigues(rvec)
+    cam_pts = rot_mat @ corners_3d.T + tvec.reshape(3, 1)
+    depth = cam_pts[2]
+    if np.any(depth <= 0):
+        return None, 0.0
+
+    norm_x, norm_y = cam_pts[0] / depth, cam_pts[1] / depth
+    fov_x = 1.5 * max(K[0, 2], w - K[0, 2]) / K[0, 0]
+    fov_y = 1.5 * max(K[1, 2], h - K[1, 2]) / K[1, 1]
+    if np.any(np.abs(norm_x) > fov_x) or np.any(np.abs(norm_y) > fov_y):
+        return None, 0.0
+
+    corners_2d, _ = cv2.projectPoints(corners_3d, rvec, tvec, K, dist)
     corners_2d = corners_2d.reshape(-1, 2)
 
-    x_min, x_max = int(np.floor(np.min(corners_2d[:, 0]))), int(np.ceil(np.max(corners_2d[:, 0])))
-    y_min, y_max = int(np.floor(np.min(corners_2d[:, 1]))), int(np.ceil(np.max(corners_2d[:, 1])))
-    x_min, y_min = max(0, x_min - padding), max(0, y_min - padding)
-    x_max, y_max = min(w, x_max + padding), min(h, y_max + padding)
+    x_min, x_max = np.min(corners_2d[:, 0]), np.max(corners_2d[:, 0])
+    y_min, y_max = np.min(corners_2d[:, 1]), np.max(corners_2d[:, 1])
 
-    if x_max <= x_min or y_max <= y_min:
-        return None
-    return x_min, y_min, x_max, y_max
+    visible_w = max(0.0, min(float(w), x_max) - max(0.0, x_min))
+    visible_h = max(0.0, min(float(h), y_max) - max(0.0, y_min))
+    visible_area = visible_w * visible_h
+    if visible_area <= 0.0:
+        return None, 0.0
 
-def find_best_registered_image(gxy, corners_3d, img_data, reconstruction_data):
-    """Tries the K nearest-by-GPS candidate photos in distance order and
-    returns the first one that's both registered in the reconstruction and
-    actually frames the house, along with its ready-to-use crop box. Returns
-    (None, None) if none of the K candidates qualify - the caller falls back
-    to whatever plain-nearest photo was already copied at extraction time
-    (uncropped), so a run still ends with a source photo per house even when
-    no candidate can be precision-cropped."""
+    px_min, py_min = max(0, int(np.floor(x_min)) - padding), max(0, int(np.floor(y_min)) - padding)
+    px_max, py_max = min(w, int(np.ceil(x_max)) + padding), min(h, int(np.ceil(y_max)) + padding)
+    if px_max <= px_min or py_max <= py_min:
+        return None, 0.0
+    return (px_min, py_min, px_max, py_max), visible_area
+
+def find_best_registered_image(corners_3d, img_data, reconstruction_data):
+    """Scores every registered candidate photo in img_data by how
+    prominently it frames the house (visible projected area - see
+    project_house_into_image) and returns the best-framed one, along with
+    its ready-to-use crop box. Returns (None, None) if nothing in the pool
+    frames the house at all - the caller falls back to whatever plain-
+    nearest photo was already copied at extraction time (uncropped), so a
+    run still ends with a source photo per house even then.
+
+    Deliberately NOT "closest by GPS position, first candidate that
+    technically overlaps" (the old behavior) - confirmed as a real bug on
+    the fir dataset, shot obliquely across the street: camera GPS position
+    says nothing about where the camera was pointed, so a photo taken right
+    next to a DIFFERENT house can still technically graze this house's
+    corners at the frame edge, win purely for being GPS-close, and get
+    returned as this house's "best" photo even though a different, far
+    better-framed photo of it exists elsewhere in the pool (real case: a
+    frame 16m from house 1050 was returned as two other houses' "best oblique"
+    despite those houses sitting 70+m away and having their own well-framed
+    photos available). Scoring every registered candidate rather than just
+    the GPS-nearest few is what finds those - the actual best oblique photo
+    of a house shot across the street isn't necessarily GPS-near it at all.
+    Cheap enough to do exhaustively: projecting 8 corners into a few hundred
+    candidate photos per house is well under a second in aggregate."""
     paths, tree = img_data
     if tree is None or reconstruction_data is None or corners_3d is None:
         return None, None
 
-    k = min(K_SOURCE_IMAGE_CANDIDATES, len(paths))
-    _, idxs = tree.query(gxy, k=k)
-    idxs = np.atleast_1d(idxs)
-
-    for i_idx in idxs:
-        img_p = paths[i_idx]
+    best_path, best_box, best_area = None, None, 0.0
+    for img_p in paths:
         try:
             pose = load_opensfm_camera(reconstruction_data, os.path.basename(img_p))
         except ValueError:
             continue                              # not registered - try the next candidate
-        box = project_house_into_image(corners_3d, pose)
-        if box is not None:
-            return img_p, box
-    return None, None
+        box, area = project_house_into_image(corners_3d, pose)
+        if box is not None and area > best_area:
+            best_path, best_box, best_area = img_p, box, area
+    return best_path, best_box
 
-def try_precision_crop(house_id, view_name, gxy, corners_3d, img_data, reconstruction_data, out_dir):
+def try_precision_crop(house_id, view_name, corners_3d, img_data, reconstruction_data, out_dir):
     """Attempts a precision crop for one view ('nadir' or 'oblique') of one
     house against one image index. On success, writes
     best_images/{house_id}_{view_name}.jpg (refreshed to the winning photo)
@@ -848,7 +892,7 @@ def try_precision_crop(house_id, view_name, gxy, corners_3d, img_data, reconstru
     (source_photo_basename, True). Returns (None, False) if no candidate in
     img_data both registered and framed the house, or on any read/write
     error - the caller decides what that means for its own bookkeeping."""
-    chosen_path, box = find_best_registered_image(gxy, corners_3d, img_data, reconstruction_data)
+    chosen_path, box = find_best_registered_image(corners_3d, img_data, reconstruction_data)
     if chosen_path is None:
         return None, False
     try:
@@ -1127,7 +1171,8 @@ def _occupied_cells(xy, cell_size=OVERLAP_CELL_SIZE):
 BRIDGE_HEIGHT_MARGIN_M = 1.0
 BRIDGE_MIN_CONSISTENT_FRACTION = 0.75
 
-def _bridge_is_height_consistent(pts_i, pts_j, overlap_cells, cell_size=OVERLAP_CELL_SIZE,
+def _bridge_is_height_consistent(pts_i, pts_j, overlap_cells, ground_model, rot, off_xy,
+                                  cell_size=OVERLAP_CELL_SIZE,
                                   margin_m=BRIDGE_HEIGHT_MARGIN_M, min_frac=BRIDGE_MIN_CONSISTENT_FRACTION):
     """True if the material actually sitting in the shared/overlapping cells
     between two candidates is height-consistent with at least one of the two
@@ -1135,7 +1180,17 @@ def _bridge_is_height_consistent(pts_i, pts_j, overlap_cells, cell_size=OVERLAP_
     fragments of one building, not just evidence their footprints touch.
     Defaults to True (don't block the merge) whenever there isn't enough
     data on either side to judge confidently, rather than risk rejecting a
-    real merge on a thin sample."""
+    real merge on a thin sample.
+
+    Compares height ABOVE LOCAL GROUND (via ground_model), not absolute
+    elevation. Confirmed as a real bug on the fir dataset: one genuine
+    building spanning sloped terrain was shattered into 4 disconnected
+    pieces because its far ends' absolute roof Z differed by 5m+ purely from
+    terrain slope (its floor elevation alone drifted ~2m site to site),
+    while its height above each end's own local ground stayed consistent
+    (~1.4-1.7m). Absolute-Z comparison reads that slope as "different
+    roof," exactly the same mistake ground_model itself exists to avoid
+    everywhere else in this pipeline."""
     def split(pts):
         cells = np.floor(pts[:, :2] / cell_size).astype(np.int64)
         in_overlap = np.array([tuple(c) in overlap_cells for c in cells])
@@ -1146,13 +1201,18 @@ def _bridge_is_height_consistent(pts_i, pts_j, overlap_cells, cell_size=OVERLAP_
     if len(interior_i) < 20 or len(interior_j) < 20:
         return True
 
-    height_i = np.median(interior_i[:, 2])
-    height_j = np.median(interior_j[:, 2])
+    def agl(pts):
+        internal = _world_to_internal(pts, rot, off_xy)
+        return internal[:, 2] - ground_model.get_z(internal[:, 0], internal[:, 1])
+
+    height_i = np.median(agl(interior_i))
+    height_j = np.median(agl(interior_j))
     bridge_pts = np.vstack([p for p in (bridge_i, bridge_j) if len(p)])
     if len(bridge_pts) < 20:
         return True
 
-    delta_to_nearest = np.minimum(np.abs(bridge_pts[:, 2] - height_i), np.abs(bridge_pts[:, 2] - height_j))
+    bridge_agl = agl(bridge_pts)
+    delta_to_nearest = np.minimum(np.abs(bridge_agl - height_i), np.abs(bridge_agl - height_j))
     return bool(np.mean(delta_to_nearest < margin_m) >= min_frac)
 
 def _world_to_internal(pts, rot, off_xy):
@@ -1271,7 +1331,7 @@ def merge_overlapping_footprints(raw_res, out_dir, ground_model, rot, off_xy, g_
                 overlap_sqft = len(overlap_cells) * (OVERLAP_CELL_SIZE ** 2) * 10.764
                 if overlap_sqft < MIN_OVERLAP_SQFT:
                     continue
-                if _bridge_is_height_consistent(root_pts[ri], root_pts[rj], overlap_cells):
+                if _bridge_is_height_consistent(root_pts[ri], root_pts[rj], overlap_cells, ground_model, rot, off_xy):
                     union(i, j)
                     changed = True
         if not changed:
@@ -1589,7 +1649,7 @@ def process_reconstruction(args):
 
     project_path = os.path.abspath(args.project_path)
     project_name = os.path.basename(os.path.normpath(project_path))
-    out = os.path.join(project_path, f"analysis_{project_name}_v6")
+    out = os.path.join(project_path, f"analysis_{project_name}_v9")
 
     for d in ["individual_houses", "best_images", "best_images_cropped", "diagnostics"]:
         os.makedirs(os.path.join(out, d), exist_ok=True)
@@ -2052,23 +2112,22 @@ def process_reconstruction(args):
     for record in final_measurements:
         house_id = record["house_ID"]
         corners_3d = house_corners.get(house_id)
-        gxy = [record["X_UTM"], record["Y_UTM"]]
 
         nadir_src, nadir_ok = try_precision_crop(
-            house_id, "nadir", gxy, corners_3d, nadir_img_data, reconstruction_data, out)
+            house_id, "nadir", corners_3d, nadir_img_data, reconstruction_data, out)
         if nadir_ok:
             record["Nadir_Original_Image"] = nadir_src
             record["Nadir_Image_Precision_Cropped"] = True
             cropped_count += 1
         else:
-            # None of the K nearest nadir candidates were both registered and
-            # actually framed the house - leave whatever plain-nearest photo
-            # extraction already copied to best_images/{house_id}_nadir.jpg
-            # in place (uncropped) rather than end up with nothing at all.
+            # No registered candidate in the pool actually framed the house -
+            # leave whatever plain-nearest photo extraction already copied to
+            # best_images/{house_id}_nadir.jpg in place (uncropped) rather
+            # than end up with nothing at all.
             no_nadir_count += 1
 
         oblique_src, oblique_ok = try_precision_crop(
-            house_id, "oblique", gxy, corners_3d, oblique_img_data, reconstruction_data, out)
+            house_id, "oblique", corners_3d, oblique_img_data, reconstruction_data, out)
         if oblique_ok:
             record["Oblique_Original_Image"] = oblique_src
             record["Oblique_Image_Precision_Cropped"] = True
@@ -2090,11 +2149,9 @@ def process_reconstruction(args):
         record["Oblique_Best_Image"] = oblique_path if os.path.exists(oblique_path) else "N/A"
 
     print(f"      -> Nadir: cropped {cropped_count} / {len(final_measurements)} "
-          f"({no_nadir_count} had no registered/in-frame candidate among "
-          f"the {K_SOURCE_IMAGE_CANDIDATES} nearest - left uncropped)")
+          f"({no_nadir_count} had no registered/in-frame candidate in the pool - left uncropped)")
     print(f"      -> Oblique: cropped {cropped_oblique_count} / {len(final_measurements)} "
-          f"({no_oblique_count} had no registered/in-frame candidate among "
-          f"the {K_SOURCE_IMAGE_CANDIDATES} nearest - no oblique photo for these)")
+          f"({no_oblique_count} had no registered/in-frame candidate in the pool - no oblique photo for these)")
 
     measurements_path = os.path.join(out, "measurements.csv")
     with open(measurements_path, 'w', newline='') as f:
