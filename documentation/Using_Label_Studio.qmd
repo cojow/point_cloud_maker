@@ -4,6 +4,8 @@ format:
   html:
     toc: true
     toc-depth: 3
+    theme: cosmo
+    
 ---
 
 Label Studio is an annotating software that runs on your computer that will

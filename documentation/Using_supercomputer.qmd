@@ -4,6 +4,7 @@ format:
   html:
     toc: true
     toc-depth: 3
+    theme: cosmo
 ---
 
 This documentation outlines how to use the BYU supercomputer to run the Point Cloud Maker and Object Detection Learning Software (not yet finished).

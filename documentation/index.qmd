@@ -3,9 +3,12 @@ title: "Point Cloud Maker Documentation"
 format:
   html:
     toc: false
+    theme: cosmo
 ---
 
 - [Using the BYU Super Computer](Using_supercomputer.html) — account setup, running the reconstruction and
   extraction stages, and a Slurm/supercomputer command reference.
 - [Using Label Studio](Using_Label_Studio.html) — installing Label Studio and annotating images for the object
   detection model.
+- [DJI Flight Planner](https://github.com/cojow/flight_planner) - Flight planner recommended by README. 
+- [BYU_Specific_information](https://cojow.github.io/flight_planner/BYU_Specific_information/) - Documentation related to BYU Research, from the flight planner. 
