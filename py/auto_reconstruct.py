@@ -12,6 +12,7 @@ import shlex
 import numpy as np
 from resource_monitor import MemoryMonitor
 from reconstruction_leveling import level_reconstruction, read_dji_gimbal_attitude
+from pipeline_config import load_config
 
 # Line-buffer stdout: when redirected to a file (e.g. a SLURM .out log),
 # Python block-buffers by default and only flushes at exit. If the job gets
@@ -226,7 +227,7 @@ def restrict_depthmap_shots(project_path, pitch_threshold):
     # couldn't be found/read at all - normally rare. If it's happening for
     # most or all shots, something is silently defeating classification
     # entirely (e.g. a path/filename mismatch) rather than genuinely lacking
-    # telemetry, and --depthmap-nadir-only will look like a no-op even though
+    # telemetry, and reconstruction.depthmap_nadir_only will look like a no-op even though
     # it ran - worth surfacing loudly rather than only in a quiet count.
     if shots and n_unclassifiable / len(shots) > 0.5:
         print(f"      [!] WARNING: {n_unclassifiable}/{len(shots)} shots were unclassifiable "
@@ -501,6 +502,8 @@ def set_config_value(config_lines, key, value):
 def main(args):
     global_start_time = time.time()
     project_path = args.project_path
+    cfg = load_config(args.config)
+    recon_cfg = cfg["reconstruction"]
 
     mem_monitor = MemoryMonitor()
     if mem_monitor.start():
@@ -545,18 +548,19 @@ def main(args):
             
     config_lines = set_config_value(config_lines, "processes", max_cores)
 
-    # Densification + matching tuning - only touches config.yaml for flags the
-    # user actually passed; anything left as None keeps whatever OpenSfM's own
-    # default (or whatever's already in this project's config.yaml) is.
+    # Densification + matching tuning - only touches config.yaml for keys the
+    # user actually set in config.yml's reconstruction section; anything left
+    # as null keeps whatever OpenSfM's own default (or whatever's already in
+    # this project's config.yaml) is.
     depthmap_overrides = {
-        "depthmap_method": args.depthmap_method,
-        "depthmap_resolution": args.depthmap_resolution,
-        "depthmap_min_consistent_views": args.depthmap_min_consistent_views,
-        "depthmap_min_patch_sd": args.depthmap_min_patch_sd,
-        "depthmap_num_neighbors": args.depthmap_num_neighbors,
-        "depthmap_num_matching_views": args.depthmap_num_matching_views,
-        "matching_gps_neighbors": args.matching_gps_neighbors,
-        "matching_gps_distance": args.matching_gps_distance,
+        "depthmap_method": recon_cfg["depthmap_method"],
+        "depthmap_resolution": recon_cfg["depthmap_resolution"],
+        "depthmap_min_consistent_views": recon_cfg["depthmap_min_consistent_views"],
+        "depthmap_min_patch_sd": recon_cfg["depthmap_min_patch_sd"],
+        "depthmap_num_neighbors": recon_cfg["depthmap_num_neighbors"],
+        "depthmap_num_matching_views": recon_cfg["depthmap_num_matching_views"],
+        "matching_gps_neighbors": recon_cfg["matching_gps_neighbors"],
+        "matching_gps_distance": recon_cfg["matching_gps_distance"],
     }
     for key, value in depthmap_overrides.items():
         if value is not None:
@@ -593,13 +597,13 @@ def main(args):
 
     # Phase 2: undistort + Lightweight OpenSfM Densification (Universal)
     print("\n--- Undistorting and running Lightweight OpenSfM Densification ---")
-    if args.depthmap_nadir_only:
+    if recon_cfg["depthmap_nadir_only"]:
         # Needs a Python-side hook between undistort and compute_depthmaps, so
         # (unlike the default path) these can't be one batched container call.
         run_opensfm_steps(engine, ["undistort"], project_path, opensfm_bin)
-        backup, n_kept, n_skipped = restrict_depthmap_shots(project_path, args.nadir_pitch_threshold)
-        print(f"      -> --depthmap-nadir-only: densifying {n_kept} near-nadir shot(s) "
-              f"(gimbal pitch <= {args.nadir_pitch_threshold}° or unclassifiable), "
+        backup, n_kept, n_skipped = restrict_depthmap_shots(project_path, recon_cfg["nadir_pitch_threshold"])
+        print(f"      -> reconstruction.depthmap_nadir_only: densifying {n_kept} near-nadir shot(s) "
+              f"(gimbal pitch <= {recon_cfg['nadir_pitch_threshold']}° or unclassifiable), "
               f"skipping {n_skipped} oblique/frontal shot(s)")
         try:
             run_opensfm_steps(engine, ["compute_depthmaps"], project_path, opensfm_bin)
@@ -615,7 +619,7 @@ def main(args):
     
     if os.path.exists(source_ply):
         converted = None
-        if not args.ascii_ply:
+        if not recon_cfg["ascii_ply"]:
             try:
                 t0 = time.time()
                 converted = convert_ply_ascii_to_binary(source_ply, final_ply_path)
@@ -637,7 +641,7 @@ def main(args):
         if not converted:
             # Move, don't copy. merged.ply is a consumed intermediate and
             # scene_dense.ply is the deliverable, so copying 1.8 GB only to
-            # delete the original (which --cleanup does anyway) is pure waste.
+            # delete the original (which reconstruction.cleanup does anyway) is pure waste.
             # os.replace is an instant same-filesystem rename; the copy is kept
             # only as a cross-device fallback.
             try:
@@ -651,7 +655,7 @@ def main(args):
 
     peak_gb, peak_method = mem_monitor.stop_and_report()
 
-    if args.cleanup:
+    if recon_cfg["cleanup"]:
         if os.path.exists(final_ply_path):
             cleanup_intermediate_files(project_path)
         else:
@@ -681,97 +685,18 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Reconstruct a point cloud from drone photos via OpenSfM/ODM.")
     parser.add_argument("project_path", type=str, help="Path to the project directory (e.g. data/900EBlock).")
-
-    parser.add_argument("--depthmap-method", type=str, default=None,
-                        choices=["PATCH_MATCH", "PATCH_MATCH_SAMPLE", "BRUTE_FORCE"],
-                        help="Depth estimation algorithm (OpenSfM stock default: PATCH_MATCH_SAMPLE, confirmed "
-                             "via job logs). PATCH_MATCH_SAMPLE is a faster, sparser approximation - it attempts "
-                             "fewer per-pixel estimates and refines them less. PATCH_MATCH is the full method: "
-                             "more coverage (fewer un-attempted pixels) and more refined estimates, at real extra "
-                             "cost - likely one of the more expensive levers here, not a cheap one. BRUTE_FORCE is "
-                             "an older exhaustive-search fallback, generally not preferred. Leave unset to keep "
-                             "the existing config.yaml/OpenSfM default.")
-    parser.add_argument("--depthmap-resolution", type=int, default=None,
-                        help="Depth estimation resolution in pixels, per image (OpenSfM stock default: 640). "
-                             "The single biggest lever on point cloud detail - but cost scales roughly with "
-                             "the square of this value, per image. Leave unset to keep the existing config.yaml/"
-                             "OpenSfM default.")
-    parser.add_argument("--depthmap-min-consistent-views", type=int, default=None,
-                        help="Minimum number of neighboring images that must agree before a depth estimate is "
-                             "kept (OpenSfM stock default: 3). Lower = more points survive, more noise. Cheap "
-                             "to tune - just a filter on estimates already computed. Leave unset to keep the "
-                             "existing config.yaml/OpenSfM default.")
-    parser.add_argument("--depthmap-min-patch-sd", type=float, default=None,
-                        help="Minimum patch texture (standard deviation) required to attempt a depth estimate "
-                             "(OpenSfM stock default: ~1.0). Lowering it helps fill in low-texture surfaces like "
-                             "roofs and painted walls. Leave unset to keep the existing config.yaml/OpenSfM default.")
-    parser.add_argument("--depthmap-num-neighbors", type=int, default=None,
-                        help="Number of neighboring images considered per shot during depth estimation (OpenSfM "
-                             "stock default: 10). More = better accuracy/coverage, more compute. Leave unset to "
-                             "keep the existing config.yaml/OpenSfM default.")
-    parser.add_argument("--depthmap-num-matching-views", type=int, default=None,
-                        help="Number of matching views used per depth estimate (OpenSfM stock default: 5). "
-                             "Leave unset to keep the existing config.yaml/OpenSfM default.")
-    parser.add_argument("--matching-gps-neighbors", type=int, default=None,
-                        help="Match each image only against its N nearest neighbors by GPS position "
-                             "(OpenSfM stock default: 0, meaning 'no neighbor cap' - the distance bound "
-                             "alone decides). THIS IS THE MAIN SCALING LEVER. match_features is the only "
-                             "O(n^2) stage in the pipeline: on the 245-image fir run it attempted 17,858 "
-                             "pairs and only 1,839 (10.3%%) produced a usable match, so ~90%% of that "
-                             "5.98-minute stage was spent proving that non-overlapping images don't "
-                             "overlap. Capping neighbors makes the pair count grow linearly with image "
-                             "count instead of quadratically. Try 20-30 for a mapping flight with normal "
-                             "overlap. Verify the effect on the next run via the 'Matching N image pairs' "
-                             "line in the log, and confirm the reconstruction still registers about as "
-                             "many images ('Reconstruction 0: N images'). Leave unset to keep the "
-                             "existing config.yaml/OpenSfM default.")
-    parser.add_argument("--matching-gps-distance", type=float, default=None,
-                        help="Maximum GPS distance in meters between two images for them to be considered "
-                             "a candidate pair (OpenSfM stock default: 150). This bound and "
-                             "--matching-gps-neighbors are applied together (nearest N, subject to being "
-                             "within this distance), so tightening either one shrinks the pair list. At a "
-                             "typical ~100m survey altitude over a neighborhood, 150m is wide enough that "
-                             "nearly every image is a candidate for nearly every other, which is why the "
-                             "neighbor cap above is usually the more effective knob. Leave unset to keep "
-                             "the existing config.yaml/OpenSfM default.")
-    parser.add_argument("--depthmap-nadir-only", action="store_true",
-                        help="For a two-flight setup (a near-nadir pass for the point cloud, plus a "
-                             "separate oblique/frontal pass shot mainly for something else, e.g. object "
-                             "detection training images) - skip compute_depthmaps for the frontal shots "
-                             "entirely, classified by DJI gimbal pitch. The frontal shots still get real "
-                             "camera poses (registered normally via reconstruct/undistort) for downstream "
-                             "photo cropping; they just never pay for densification, which is the single "
-                             "most expensive stage in the pipeline (cost scales with depthmap_resolution "
-                             "squared, PER IMAGE). Lets you raise --depthmap-resolution for the nadir set "
-                             "without that cost also landing on every frontal-flight image, whose pixels "
-                             "were never meant to become point-cloud points anyway. Requires DJI XMP "
-                             "gimbal telemetry in the images (same requirement as the leveling step) - "
-                             "shots without it are kept/densified rather than silently dropped.")
-    parser.add_argument("--nadir-pitch-threshold", type=float, default=-60.0,
-                        help="Gimbal pitch cutoff for --depthmap-nadir-only, in degrees (DJI convention: "
-                             "-90 = straight down, 0 = level). Shots with pitch AT OR BELOW this (i.e. "
-                             "steeper / more downward-looking than the cutoff) are treated as nadir and "
-                             "densified; shots above it (more level/oblique) are skipped. Default -60 "
-                             "assumes a clear separation between a near-nadir pass and a much more level "
-                             "frontal pass - check a few of your frontal images' actual GimbalPitchDegree "
-                             "if the two flights are closer together in pitch than that.")
-    parser.add_argument("--ascii-ply", action="store_true",
-                        help="Keep scene_dense.ply in OpenSfM's native ASCII format instead of converting "
-                             "it to binary_little_endian. Conversion is on by default because it roughly "
-                             "halves the file (1.8 GB -> ~0.9 GB for the 245-image fir run's 33.1M points) "
-                             "and, more importantly, spares extract_buildings_floor.py from text-parsing 33 "
-                             "million lines on every load. Conversion also renames OpenMVS's non-standard "
-                             "diffuse_red/green/blue colour properties to the standard red/green/blue, so "
-                             "Open3D loads colours directly. Pass this flag if you need the ASCII file for "
-                             "an external tool that can't read binary PLY.")
-    parser.add_argument("--cleanup", action="store_true",
-                        help="After the pipeline finishes, delete everything in the project directory "
-                             "except images/, reconstruction.json, and scene_dense.ply - the only three "
-                             "things extract_buildings_floor.py reads. This removes OpenSfM's working "
-                             "state (features/, matches/, undistorted/ depthmaps and undistorted images, "
-                             "tracks.csv, camera_models.json, config.yaml, etc.), which is usually much "
-                             "larger than what's kept. Skipped automatically if scene_dense.ply wasn't "
-                             "produced, so a failed run's intermediate files aren't lost.")
+    parser.add_argument("--config", type=str,
+                        default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.yml"),
+                        help="Path to a config.yml (its 'reconstruction' section covers depthmap method/"
+                             "resolution/consistency, GPS matching neighbors/distance, nadir-only "
+                             "densification and its pitch threshold, ASCII-vs-binary PLY output, and "
+                             "post-run cleanup - see config.yml itself for what each setting does). "
+                             "Defaults to config.yml next to this script - the same file "
+                             "building_extractor.py reads by default, so both stages share one config "
+                             "unless you point them at different files. Missing keys fall back to the "
+                             "built-in defaults, and a missing file falls back to defaults for everything. "
+                             "Pass a different path for a per-project config instead of editing the "
+                             "default one in place.")
 
     args = parser.parse_args()
     main(args)

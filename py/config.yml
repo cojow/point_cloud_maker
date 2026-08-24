@@ -1,10 +1,117 @@
-# building_extractor.py configuration.
+# Shared configuration for both pipeline stages - auto_reconstruct.py
+# (reconstruction section) and building_extractor.py (everything else).
 #
 # Edit this file (nano config.yml) before submitting a job to tune any of
-# these per-dataset - no code changes or new CLI flags needed. Point the
+# these per-dataset - no code changes or CLI flags needed. Point either
 # script at a different copy with --config /path/to/other.yml if you want
 # per-project configs instead of editing this one in place; any section or
 # key you leave out falls back to the default shown here.
+
+reconstruction:
+  # All of these tune auto_reconstruct.py's OpenSfM/ODM densification and
+  # matching. Anything left as null (the default) is skipped entirely -
+  # auto_reconstruct.py never writes that key into the project's own
+  # config.yaml, so OpenSfM's own stock default (or whatever's already in
+  # that project's config.yaml) applies unchanged.
+
+  # Depth estimation algorithm (OpenSfM stock default: PATCH_MATCH_SAMPLE,
+  # confirmed via job logs). One of PATCH_MATCH, PATCH_MATCH_SAMPLE,
+  # BRUTE_FORCE. PATCH_MATCH_SAMPLE is a faster, sparser approximation - it
+  # attempts fewer per-pixel estimates and refines them less. PATCH_MATCH is
+  # the full method: more coverage and more refined estimates, at real extra
+  # cost. BRUTE_FORCE is an older exhaustive-search fallback, generally not
+  # preferred.
+  depthmap_method: null
+
+  # Depth estimation resolution in pixels, per image (OpenSfM stock default:
+  # 640). The single biggest lever on point cloud detail - but cost scales
+  # roughly with the square of this value, per image.
+  depthmap_resolution: null
+
+  # Minimum number of neighboring images that must agree before a depth
+  # estimate is kept (OpenSfM stock default: 3). Lower = more points
+  # survive, more noise. Cheap to tune - just a filter on estimates already
+  # computed.
+  depthmap_min_consistent_views: null
+
+  # Minimum patch texture (standard deviation) required to attempt a depth
+  # estimate (OpenSfM stock default: ~1.0). Lowering it helps fill in
+  # low-texture surfaces like roofs and painted walls.
+  depthmap_min_patch_sd: null
+
+  # Number of neighboring images considered per shot during depth estimation
+  # (OpenSfM stock default: 10). More = better accuracy/coverage, more
+  # compute.
+  depthmap_num_neighbors: null
+
+  # Number of matching views used per depth estimate (OpenSfM stock
+  # default: 5).
+  depthmap_num_matching_views: null
+
+  # Match each image only against its N nearest neighbors by GPS position
+  # (OpenSfM stock default: 0, meaning "no neighbor cap" - the distance
+  # bound alone decides). THE MAIN SCALING LEVER - match_features is the
+  # only O(n^2) stage in the pipeline, and capping neighbors makes the pair
+  # count grow linearly with image count instead of quadratically. Try
+  # 20-30 for a mapping flight with normal overlap. Verify the effect via
+  # the "Matching N image pairs" line in the log, and confirm the
+  # reconstruction still registers about as many images
+  # ("Reconstruction 0: N images").
+  matching_gps_neighbors: null
+
+  # Maximum GPS distance in meters between two images for them to be
+  # considered a candidate pair (OpenSfM stock default: 150). Applied
+  # together with matching_gps_neighbors (nearest N, subject to being
+  # within this distance). At a typical ~100m survey altitude over a
+  # neighborhood, 150m is wide enough that nearly every image is a
+  # candidate for nearly every other, which is why the neighbor cap above
+  # is usually the more effective knob.
+  matching_gps_distance: null
+
+  # For a two-flight setup (a near-nadir pass for the point cloud, plus a
+  # separate oblique/frontal pass shot mainly for something else, e.g.
+  # object detection training images) - skip compute_depthmaps for the
+  # frontal shots entirely, classified by DJI gimbal pitch. The frontal
+  # shots still get real camera poses (registered normally via
+  # reconstruct/undistort) for downstream photo cropping; they just never
+  # pay for densification, which is the single most expensive stage in the
+  # pipeline (cost scales with depthmap_resolution squared, PER IMAGE).
+  # Requires DJI XMP gimbal telemetry in the images (same requirement as
+  # the leveling step) - shots without it are kept/densified rather than
+  # silently dropped.
+  depthmap_nadir_only: false
+
+  # Gimbal pitch cutoff for depthmap_nadir_only, in degrees (DJI
+  # convention: -90 = straight down, 0 = level). Shots with pitch AT OR
+  # BELOW this (steeper / more downward-looking than the cutoff) are
+  # treated as nadir and densified; shots above it (more level/oblique) are
+  # skipped. The default assumes a clear separation between a near-nadir
+  # pass and a much more level frontal pass - check a few of your frontal
+  # images' actual GimbalPitchDegree if the two flights are closer together
+  # in pitch than that. Not the same setting as imagery.nadir_pitch_threshold
+  # below, which is building_extractor.py's nadir/oblique photo-crop split.
+  nadir_pitch_threshold: -60.0
+
+  # Keep scene_dense.ply in OpenSfM's native ASCII format instead of
+  # converting it to binary_little_endian. Conversion is on by default
+  # because it roughly halves the file size and, more importantly, spares
+  # building_extractor.py from text-parsing millions of lines on every
+  # load. Conversion also renames OpenMVS's non-standard
+  # diffuse_red/green/blue colour properties to the standard
+  # red/green/blue, so Open3D loads colours directly. Only set this to true
+  # if you need the ASCII file for an external tool that can't read binary
+  # PLY.
+  ascii_ply: false
+
+  # After the pipeline finishes, delete everything in the project directory
+  # except images/, reconstruction.json, and scene_dense.ply - the only
+  # three things building_extractor.py reads. This removes OpenSfM's
+  # working state (features/, matches/, undistorted/ depthmaps and
+  # undistorted images, tracks.csv, camera_models.json, config.yaml, etc.),
+  # which is usually much larger than what's kept. Skipped automatically if
+  # scene_dense.ply wasn't produced, so a failed run's intermediate files
+  # aren't lost.
+  cleanup: false
 
 ground_model:
   # Grid cell size in meters for the local ground contour model. Smaller =
@@ -17,6 +124,12 @@ ground_model:
   # roof rescue in LocalGroundModel) as long as they're under ~5x this span;
   # anything bigger than that is treated as terrain/street, not a building.
   opening_span: 20.0
+
+  # Only for point clouds that did NOT go through auto_reconstruct.py's
+  # gravity-leveling step (level_reconstruction, run between reconstruct and
+  # undistort). Turning this on for a cloud that already went through that
+  # step re-applies a redundant (and potentially wrong) flattening.
+  relevel: False
 
 vehicle_rejection:
   # Drop Possible_Vehicle candidates (see max_area_sqft/max_height_ft below)

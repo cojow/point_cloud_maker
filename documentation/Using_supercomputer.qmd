@@ -1,0 +1,369 @@
+---
+title: "Using the BYU Super Computer"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+---
+
+This documentation outlines how to use the BYU supercomputer to run the Point Cloud Maker and Object Detection Learning Software (not yet finished).
+
+See the [Appendix](#appendix) to read about how to execute commands on the supercomputer. 
+
+# Running the pipeline
+
+## 1. Install dependencies and set up your account
+
+While the point cloud code can be run locally, it requires a large amount of processing power. 
+To circumvent this, we will use the BYU supercomputer resources. 
+The following will walk you through setting up your account and directories. 
+Skip to the end of this section to just install the dependencies.
+
+> **Note:** Whenever "username" appears in a file path or terminal input,
+> replace it with the username you created when setting up your account.
+
+### Clone this repository
+
+Press the green "Code" button, then copy the URL link it gives. 
+Open up your IDE (Integrated Development Environment), like Positron, and download the repository. 
+You'll be transferring files to and from this folder, so put it in a good place.
+
+### BYU Supercomputer Account setup
+
+Go to [BYU Research Computing](https://rc.byu.edu/account/create/) and follow the steps for making an account. 
+**gmac** is the user that you'll be under, working for Dr. Macfarlane.
+
+Once you've created an account, open the terminal and run the following command
+(replace "username" with your username):
+
+```bash
+ssh username@ssh.rc.byu.edu
+```
+
+> **Note:** You will be required to set up two-factor authentication when you
+> first log in. Read about it
+> [here](https://rc.byu.edu/wiki/?id=Two-Factor+Authentication). Since BYU uses
+> DUO, I find this the easiest to use. But you can use whatever authentication
+> app you want.
+
+Every time you log into the terminal, you will be prompted to enter your password and authentication code.
+You will then be placed in the `/home/username` directory. 
+This is where you will store and run all the files.
+
+### Set up directories
+
+Using the command `mkdir folder_name`, make the following file paths in the
+supercomputer terminal in the order given below. This will keep your workspace
+organized:
+
+- `/home/username/point_cloud`
+- `/home/username/point_cloud/py`
+- `/home/username/point_cloud/scjobs`
+- `/home/username/point_cloud/data`
+- `/home/username/point_cloud/data/log_out`
+
+For example:
+
+```bash
+mkdir /home/username/point_cloud
+```
+
+### Install a container engine
+
+A major part of the code's backbone is built upon the point cloud densifier code
+from [OpenDroneMap](https://github.com/opendronemap/ODM). In order to run the
+pipeline, you'll need a container engine:
+
+- **If running locally:** [Docker](https://www.docker.com/) (uses the
+  `opendronemap/odm:latest` image, pulled automatically on first run). Not
+  suggested due to the amount of computational power needed. 
+  If you must use local, talk to Connor first. 
+
+  ```bash
+  docker://opendronemap/odm:latest
+  ```
+
+- **Using the BYU supercomputer:** [Apptainer](https://apptainer.org/). 
+  Apptainer may work locally as well; this has not been verified. 
+  Docker for sure does not work on the BYU supercomputer.
+
+  Apptainer isn't on your `PATH` by default — load it first, every time you start
+  a new shell session. 
+  This command is placed in each .sh job, so it will run automatically each time you submit one.
+
+  ```bash
+  module load apptainer
+  ```
+
+  Pull the image, then convert it into a sandbox (a plain, uncompressed
+  directory). This is required, not optional — some compute nodes on the BYU
+  supercomputer can't mount a `.sif` file directly (fails with a
+  `squashfuse_ll ... fuse: device not found` error), but a sandbox sidesteps that
+  since it doesn't need FUSE to build or to run against.
+
+  In other words, run the following commands on the supercomputer, 
+  under the `/home/username/point_cloud/py` directory. 
+
+  ```bash
+  apptainer pull odm.sif docker://opendronemap/odm:latest
+  apptainer build --sandbox odm_sandbox odm.sif
+  ```
+
+### Upload the code and install packages
+
+Upload the `py` and `scjobs` folders to their respective folders in the
+supercomputer. Upload `requirements.txt` to `/home/username`.
+
+> **Note:** See the [Appendix](#appendix) at the bottom of this page to see how
+> to upload files to the supercomputer.
+
+Once the above is done, run the following command in the supercomputer to install
+the required packages:
+
+```bash
+pip install -r requirements.txt
+```
+
+You are now ready to run the pipeline using the BYU supercomputer! 🥳
+
+> **Note:** [`py/auto_reconstruct.py`](../py/auto_reconstruct.py) hardcodes the
+> path to the sandbox (`APPTAINER_IMAGE`) for the Apptainer/Linux case, since
+> that path lives outside this repo and differs per machine/account. 
+> It is currently hard coded to `/home/willicon/point_cloud/odm_sandbox`.
+> When you download the repository, update that path at the top of the file to point at
+> wherever you built `odm_sandbox` above.
+
+## 2. Reconstruction: photos to point cloud
+
+> **Note:** Replace "username" with your username when it shows up in the instructions. 
+> See the [Appendix](#appendix) for specific help on how to upload, download, and run files on the supercomputer.
+
+Open the terminal and upload your photos folder to the supercomputer. Input your
+username and authentication code and then wait for the files to finish uploading.
+
+In the terminal, run `ssh username@ssh.rc.byu.edu` and enter your password and authentication code. 
+Now that you are in the supercomputer terminal, if you have set up the file paths, run:
+
+```bash
+nano /home/username/point_cloud/scjobs/auto_reconstruct.sh
+```
+
+This will edit the script that runs the code to create the point cloud.
+
+Edit the Python file path under "Run the pipeline" note,
+(e.g. `/home/willicon/point_cloud/data/normandy`) so that it reflects the path to your folder with the images. 
+Press <kbd>Control</kbd> + <kbd>O</kbd> and <kbd>Enter</kbd> to save the file, 
+and <kbd>Control</kbd> + <kbd>X</kbd> to exit.
+
+Change into the folder that will hold all the files showing the terminal output:
+
+```bash
+cd /home/username/point_cloud/data/log_out
+```
+
+Then submit your job:
+
+```bash
+sbatch /home/username/point_cloud/scjobs/auto_reconstruct.sh
+```
+
+It will say "Submitted batch job" and then the project number. 
+If you want to follow the code output, use `tail -f reconstruct_<jobnumber>.out`. 
+Run this in the same location you ran the `sbatch` line.
+
+Once the process is running, you can edit the scjobs file to run another job.
+
+### Configuration
+
+Tuning lives in [`py/config.yml`](../py/config.yml)'s `reconstruction:` section. 
+The **same file** is used for both parts of the pipeline. 
+Run `nano py/config.yml` before submitting a job to change any of these; 
+everything left at `null` is skipped entirely, so OpenSfM's own stock default applies.
+See `README.md` or `config.yml` for explanations.
+
+If you want a different config for a specific project instead of editing `py/config.yml` in place, 
+save your own copy anywhere and pass `--config /path/to/your.yml` in the .sh file.
+
+### Output
+
+This produces the following inside `data/<project_name>/` itself. 
+
+- `images/`: your source photos, sorted out of any loose files that were sitting
+  directly in the project folder
+- `reconstruction.json`: camera poses for every registered image; read by
+  `building_extractor.py` later for precision-cropping the best photo per building
+- `scene_dense.ply`: the point cloud itself, the main deliverable of this stage.
+- `config.yaml`: OpenSfM's own per-project config; `auto_reconstruct.py` writes
+  `processes` here every run, plus any `reconstruction.*` keys you set to
+  something other than `null`, leaving everything else at OpenSfM's stock default
+
+Everything else in the folder (`features/`, `matches/`, `undistorted/` depthmaps
+and undistorted images, `tracks.csv`, `camera_models.json`, `*.MRK` files, etc.) is OpenSfM/ODM's own working stuff. 
+`building_extractor.py` never reads any of it.
+
+> **Note:** Set `reconstruction.cleanup: true` in `config.yml` to have a
+> successful run delete all of that working state automatically, leaving only
+> `images/`, `reconstruction.json`, and `scene_dense.ply`. 
+> Skipped automatically if `scene_dense.ply` wasn't produced, so a failed run stays debuggable.
+
+## 3. Extraction: point cloud to buildings
+
+> **Note:** Since the process is similar to reconstruction, the following instructions are condensed.
+
+In the supercomputer, change to the log output folder so that the outputs land in
+the correct place:
+
+```bash
+cd /home/username/point_cloud/data/log_out
+```
+
+Edit the extraction job script:
+
+```bash
+nano /home/username/point_cloud/scjobs/extract_buildings.sh
+```
+
+Edit the Python file path under "Run the pipeline" note,
+(e.g. `/home/willicon/point_cloud/data/normandy`) so that it reflects the path to your folder with the images. 
+Press <kbd>Control</kbd> + <kbd>O</kbd> and <kbd>Enter</kbd> to save the file, 
+and <kbd>Control</kbd> + <kbd>X</kbd> to exit.
+
+Submit your job and wait for it to finish:
+
+```bash
+sbatch /home/username/point_cloud/scjobs/extract_buildings.sh
+```
+
+The `.out` file is in the form of `house_<jobnumber>.out`.
+
+While it runs, you can edit the `.sh` file to run other jobs.
+
+### Configuration
+
+All settings live in [`py/config.yml`](../py/config.yml).
+The **same file** is used for both parts of the pipeline. 
+Run `nano py/config.yml` before submitting a job to change any of these; 
+everything left at `null` is skipped entirely, so OpenSfM's own stock default applies.
+See `README.md` or `config.yml` for explanations.
+
+If you want a different config for a specific project instead of editing `py/config.yml` in place, 
+save your own copy anywhere and pass `--config /path/to/your.yml`.
+
+### Output
+
+This produces, in the folder `data/<project_name>/analysis_<project_name>_v9/`, the following:
+
+- `measurements.csv`: one row per building: 
+  area (sqft), 
+  volume (cuft), 
+  height (ft), 
+  UTM + lat/lon location, 
+  source image references, 
+  and two review flags (`Needs_Review` for likely vegetation contamination, `Possible_Vehicle` for
+  candidates small/short enough that they might be a parked car rather than a
+  building. 
+  Source photos come in two views, each with its own three columns
+  following the same `{View}_Best_Image` / `{View}_Original_Image` /
+  `{View}_Image_Precision_Cropped` pattern:
+
+  - `Nadir_*`: straight-down (DJI gimbal pitch at or steeper than
+    `imagery.nadir_pitch_threshold` in `config.yml`, default -65.0°)
+
+  - `Oblique_*`: the shallower of the site's two survey passes, if it has one —
+    not a true side-on elevation shot, but steep enough to still show real
+    wall/facade detail a nadir shot can't.
+
+    > **Warning:** The default -65° threshold is not universal.
+    > Check the "Indexed N nadir + M oblique" line in a run's log against what you
+    > actually expect before trusting either view on a new site, and adjust
+    > `imagery.nadir_pitch_threshold` in the config if it looks wrong.
+
+    `{View}_Image_Precision_Cropped` says whether that view's `Best_Image` / `Original_Image` is a verified precision crop (projected from the building's real 3D footprint into a registered photo) or just the closest-by-GPS fallback photo, uncropped and unverified. 
+    Only trust the image as accurate when this is `True`. 
+    Oblique has no fallback at all: if precision cropping fails for that view, `Oblique_Best_Image` is `N/A` and there's no oblique photo for that building.
+
+- `individual_houses/`: per-building `.ply` point clouds
+
+- `best_images/` and `best_images_cropped/` — source photos and crops for each
+  building, one pair per view (`{house_ID}_nadir.jpg` / `{house_ID}_oblique.jpg`).
+  A cropped file only exists when that view's `Image_Precision_Cropped` is `True`
+
+# Appendix {#appendix}
+
+## Uploading to and downloading from the supercomputer
+
+To upload a folder/file to the supercomputer, you'll run a command composed of
+the following pieces:
+
+```bash
+scp -r /path/from/local/computer username@ssh.rc.byu.edu:/home/path/to/output/location
+```
+
+- `scp -r` tells the terminal you want to access a remote network, and that you
+  want to transfer a folder/file to or from that network.
+- `/path/from/local/computer`, the first path, is the file/folder that you want to send. 
+  The path `/Users/connor/Desktop/normandy` will send the `normandy` folder from my local desktop.
+- `username@ssh.rc.byu.edu:/home/username/point_cloud/data`, the second path, is
+  the location where you want to send the file. 
+  This path `username@ssh.rc.byu.edu:/home/username/point_cloud/data` will send the 
+  file/folder to the BYU supercomputer in the `point_cloud/data` folder.
+
+> **Note:** When uploading, always place the local path first, then the supercomputer path. 
+> **Linux, what the BYU computer runs, is case sensitive.** 
+> So keep that in mind.
+
+To download a folder/file from the supercomputer, switch the second and third
+argument. Place the supercomputer path first, then the local path, like this:
+
+```bash
+scp -r willicon@ssh.rc.byu.edu:/home/willicon/point_cloud/data /Users/willicon/Desktop/normandy/scene_dense.ply
+```
+
+Whenever you upload or download, you will have to input your password and
+authentication code. It's annoying, but there is no way around it.
+
+## Creating and running jobs on the BYU supercomputer
+
+The BYU supercomputer uses `Slurm` commands to run its jobs. 
+Their [documentation](https://rc.byu.edu/wiki/?id=Slurm) and
+[videos](https://www.youtube.com/watch?v=i1r9BxHBG0I&list=PL326A5EB4E3B16FED) are
+old and somewhat outdated, but worth a look through. 
+Below is the minimum you need to run the pipeline.
+
+### nano
+
+This command lets you edit files that are on the supercomputer. 
+Type `nano` and then the file path to the file you want to edit. 
+Remember, Linux is case sensitive.
+
+```bash
+nano /home/username/point_cloud/scjobs/auto_reconstruct.sh
+```
+Press <kbd>Control</kbd> + <kbd>O</kbd> and <kbd>Enter</kbd> to save the file, 
+and <kbd>Control</kbd> + <kbd>X</kbd> to exit.
+
+### sbatch
+
+This command runs the job commands on the supercomputer.
+Like `nano`, type `sbatch` and then the path to the `.sh` file you want to run. 
+Don't try to run `.py` files, it won't work. 
+
+```bash
+sbatch /home/username/point_cloud/scjobs/auto_reconstruct.sh
+```
+
+## Useful supercomputer commands
+
+| Task | Command | Notes |
+|---|---|---|
+| Change file directory | `cd path/to/folder` | |
+| See all files/folders in the current directory | `ls` | |
+| Move a file | `mv /path/to/current/location /path/to/new/destination/` | |
+| Submit your job | `sbatch [name of .sh file where job script is saved]` | |
+| Edit a file | `nano path/to/file` | <kbd>Control</kbd> + <kbd>O</kbd> to save, <kbd>Control</kbd> + <kbd>X</kbd> to exit |
+| Check on the status of a job | `scontrol show job [job number]` | |
+| Check the status of all jobs | `squeue -u username` | |
+| Cancel jobs | `scancel [job ID(s)]` | |
+| Follow output for code | `tail -f (reconstruct or house)_(job number).out` | e.g. `tail -f reconstruct_1234567.out` |
+| Remove files | `rm filename1 filename2 etc` | |
+| Remove folders | `rm -r foldername` | |

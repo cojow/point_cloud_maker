@@ -74,10 +74,30 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 </head>
 
-<body class="fullcontent quarto-light">
+<body class="quarto-light">
 
 <div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
-
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#installation" id="toc-installation" class="nav-link active" data-scroll-target="#installation">Installation</a>
+  <ul class="collapse">
+  <li><a href="#install-environment-manager" id="toc-install-environment-manager" class="nav-link" data-scroll-target="#install-environment-manager">Install Environment Manager</a></li>
+  <li><a href="#create-and-activate-environment" id="toc-create-and-activate-environment" class="nav-link" data-scroll-target="#create-and-activate-environment">Create and Activate Environment</a></li>
+  <li><a href="#install-label-studio" id="toc-install-label-studio" class="nav-link" data-scroll-target="#install-label-studio">Install Label Studio</a></li>
+  <li><a href="#start-the-app" id="toc-start-the-app" class="nav-link" data-scroll-target="#start-the-app">Start the app</a></li>
+  </ul></li>
+  <li><a href="#getting-started" id="toc-getting-started" class="nav-link" data-scroll-target="#getting-started">Getting Started</a></li>
+  <li><a href="#beginning-a-new-project" id="toc-beginning-a-new-project" class="nav-link" data-scroll-target="#beginning-a-new-project">Beginning a New Project</a></li>
+  <li><a href="#annotating-images" id="toc-annotating-images" class="nav-link" data-scroll-target="#annotating-images">Annotating Images</a>
+  <ul class="collapse">
+  <li><a href="#standards" id="toc-standards" class="nav-link" data-scroll-target="#standards">Standards</a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
 <main class="content" id="quarto-document-content">
 
 <header id="title-block-header" class="quarto-title-block default">
@@ -102,31 +122,30 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Label Studio is an annotating software that runs on your computer that will allow you to annotate images.</p>
 <section id="installation" class="level2">
 <h2 class="anchored" data-anchor-id="installation">Installation</h2>
-<section id="install-conda-or-use-another-environment-manager" class="level3">
-<h3 class="anchored" data-anchor-id="install-conda-or-use-another-environment-manager">Install conda (or use another environment manager)</h3>
+<section id="install-environment-manager" class="level3">
+<h3 class="anchored" data-anchor-id="install-environment-manager">Install Environment Manager</h3>
+<p>I use conda, which can be downloaded by following the links below. The next steps will assume you are using conda.</p>
 <ul>
 <li><a href="https://docs.conda.io/projects/conda/en/stable/user-guide/install/macos.html">macOS</a></li>
 <li><a href="https://docs.conda.io/projects/conda/en/stable/user-guide/install/windows.html">Windows</a></li>
 </ul>
+<p>But any environment manager will work.</p>
 </section>
-<section id="create-an-environment-with-a-python-version-that-works" class="level3">
-<h3 class="anchored" data-anchor-id="create-an-environment-with-a-python-version-that-works">Create an environment with a Python version that works</h3>
-<p>In your terminal, run the following:</p>
+<section id="create-and-activate-environment" class="level3">
+<h3 class="anchored" data-anchor-id="create-and-activate-environment">Create and Activate Environment</h3>
+<p>In your terminal, run the following command:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">conda</span> create <span class="at">-n</span> label_studio python=3.11</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</section>
-<section id="activate-the-environment" class="level3">
-<h3 class="anchored" data-anchor-id="activate-the-environment">Activate the environment</h3>
-<p>Run:</p>
+<blockquote class="blockquote">
+<p><strong>Note:</strong> Python 3.11 is confirmed to work with Label Studio.</p>
+</blockquote>
+<p>Run the following to activate the environment. You’ll see the environment name in () on the left in the terminal.</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">conda</span> activate label_studio</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</section>
-<section id="make-sure-pip-is-installed" class="level3">
-<h3 class="anchored" data-anchor-id="make-sure-pip-is-installed">Make sure pip is installed</h3>
-<p>Run:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">conda</span> install pip</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="install-label-studio" class="level3">
 <h3 class="anchored" data-anchor-id="install-label-studio">Install Label Studio</h3>
-<p>Run:</p>
+<p>Make sure you have installed pip, so that you can install Label Studio.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">conda</span> install pip</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Now run:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install label-studio</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="start-the-app" class="level3">
@@ -193,12 +212,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="standards" class="level3">
 <h3 class="anchored" data-anchor-id="standards">Standards</h3>
 <ul>
-<li>Make sure the entire object is in the bounding box. There will be things that are not the object in each bounding box, but try to limit it.</li>
-<li>Annotate every instance of each object in the photo, even if it’s related to another house — such as a car in the neighboring house’s driveway, or a window on a neighboring house. When training the software, it doesn’t matter if everything relates to the subject.
+<li><p>Make sure the entire object is in the bounding box. There will be things that are not the object in each bounding box, but try to limit it.</p></li>
+<li><p>Annotate every instance of each object in the photo, even if it’s related to another house — such as a car in the neighboring house’s driveway, or a window on a neighboring house. When training the software, it doesn’t matter if everything relates to the subject.</p>
 <ul>
 <li>This also applies to objects that are only partly in a picture. The object detection model will still detect these.</li>
 </ul></li>
-<li>Again, labels must always have the same numbers associated with them, such as 1 for car.</li>
+<li><p>Again, labels must always have the same numbers associated with them, such as 1 for car.</p></li>
 </ul>
 </section>
 </section>

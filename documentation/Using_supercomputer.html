@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.27">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Using the BYU Super Computer</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="Using_supercomputer_files/libs/clipboard/clipboard.min.js"></script>
+<script src="Using_supercomputer_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="Using_supercomputer_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="Using_supercomputer_files/libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="Using_supercomputer_files/libs/quarto-html/popper.min.js"></script>
+<script src="Using_supercomputer_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="Using_supercomputer_files/libs/quarto-html/anchor.min.js"></script>
+<link href="Using_supercomputer_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="Using_supercomputer_files/libs/quarto-html/quarto-syntax-highlighting-ed96de9b727972fe78a7b5d16c58bf87.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="Using_supercomputer_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="Using_supercomputer_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="Using_supercomputer_files/libs/bootstrap/bootstrap-d6a003b94517c951b2d65075d42fb01b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#running-the-pipeline" id="toc-running-the-pipeline" class="nav-link active" data-scroll-target="#running-the-pipeline">Running the pipeline</a>
+  <ul class="collapse">
+  <li><a href="#install-dependencies-and-set-up-your-account" id="toc-install-dependencies-and-set-up-your-account" class="nav-link" data-scroll-target="#install-dependencies-and-set-up-your-account">1. Install dependencies and set up your account</a>
+  <ul class="collapse">
+  <li><a href="#clone-this-repository" id="toc-clone-this-repository" class="nav-link" data-scroll-target="#clone-this-repository">Clone this repository</a></li>
+  <li><a href="#byu-supercomputer-account-setup" id="toc-byu-supercomputer-account-setup" class="nav-link" data-scroll-target="#byu-supercomputer-account-setup">BYU Supercomputer Account setup</a></li>
+  <li><a href="#set-up-directories" id="toc-set-up-directories" class="nav-link" data-scroll-target="#set-up-directories">Set up directories</a></li>
+  <li><a href="#install-a-container-engine" id="toc-install-a-container-engine" class="nav-link" data-scroll-target="#install-a-container-engine">Install a container engine</a></li>
+  <li><a href="#upload-the-code-and-install-packages" id="toc-upload-the-code-and-install-packages" class="nav-link" data-scroll-target="#upload-the-code-and-install-packages">Upload the code and install packages</a></li>
+  </ul></li>
+  <li><a href="#reconstruction-photos-to-point-cloud" id="toc-reconstruction-photos-to-point-cloud" class="nav-link" data-scroll-target="#reconstruction-photos-to-point-cloud">2. Reconstruction: photos to point cloud</a>
+  <ul class="collapse">
+  <li><a href="#configuration" id="toc-configuration" class="nav-link" data-scroll-target="#configuration">Configuration</a></li>
+  <li><a href="#output" id="toc-output" class="nav-link" data-scroll-target="#output">Output</a></li>
+  </ul></li>
+  <li><a href="#extraction-point-cloud-to-buildings" id="toc-extraction-point-cloud-to-buildings" class="nav-link" data-scroll-target="#extraction-point-cloud-to-buildings">3. Extraction: point cloud to buildings</a>
+  <ul class="collapse">
+  <li><a href="#configuration-1" id="toc-configuration-1" class="nav-link" data-scroll-target="#configuration-1">Configuration</a></li>
+  <li><a href="#output-1" id="toc-output-1" class="nav-link" data-scroll-target="#output-1">Output</a></li>
+  </ul></li>
+  </ul></li>
+  <li><a href="#appendix" id="toc-appendix" class="nav-link" data-scroll-target="#appendix">Appendix</a>
+  <ul class="collapse">
+  <li><a href="#uploading-to-and-downloading-from-the-supercomputer" id="toc-uploading-to-and-downloading-from-the-supercomputer" class="nav-link" data-scroll-target="#uploading-to-and-downloading-from-the-supercomputer">Uploading to and downloading from the supercomputer</a></li>
+  <li><a href="#creating-and-running-jobs-on-the-byu-supercomputer" id="toc-creating-and-running-jobs-on-the-byu-supercomputer" class="nav-link" data-scroll-target="#creating-and-running-jobs-on-the-byu-supercomputer">Creating and running jobs on the BYU supercomputer</a>
+  <ul class="collapse">
+  <li><a href="#nano" id="toc-nano" class="nav-link" data-scroll-target="#nano">nano</a></li>
+  <li><a href="#sbatch" id="toc-sbatch" class="nav-link" data-scroll-target="#sbatch">sbatch</a></li>
+  </ul></li>
+  <li><a href="#useful-supercomputer-commands" id="toc-useful-supercomputer-commands" class="nav-link" data-scroll-target="#useful-supercomputer-commands">Useful supercomputer commands</a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Using the BYU Super Computer</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p>This documentation outlines how to use the BYU supercomputer to run the Point Cloud Maker and Object Detection Learning Software (not yet finished).</p>
+<p>See the <a href="#appendix">Appendix</a> to read about how to execute commands on the supercomputer.</p>
+<section id="running-the-pipeline" class="level1">
+<h1>Running the pipeline</h1>
+<section id="install-dependencies-and-set-up-your-account" class="level2">
+<h2 class="anchored" data-anchor-id="install-dependencies-and-set-up-your-account">1. Install dependencies and set up your account</h2>
+<p>While the point cloud code can be run locally, it requires a large amount of processing power. To circumvent this, we will use the BYU supercomputer resources. The following will walk you through setting up your account and directories. Skip to the end of this section to just install the dependencies.</p>
+<blockquote class="blockquote">
+<p><strong>Note:</strong> Whenever “username” appears in a file path or terminal input, replace it with the username you created when setting up your account.</p>
+</blockquote>
+<section id="clone-this-repository" class="level3">
+<h3 class="anchored" data-anchor-id="clone-this-repository">Clone this repository</h3>
+<p>Press the green “Code” button, then copy the URL link it gives. Open up your IDE (Integrated Development Environment), like Positron, and download the repository. You’ll be transferring files to and from this folder, so put it in a good place.</p>
+</section>
+<section id="byu-supercomputer-account-setup" class="level3">
+<h3 class="anchored" data-anchor-id="byu-supercomputer-account-setup">BYU Supercomputer Account setup</h3>
+<p>Go to <a href="https://rc.byu.edu/account/create/">BYU Research Computing</a> and follow the steps for making an account. <strong>gmac</strong> is the user that you’ll be under, working for Dr.&nbsp;Macfarlane.</p>
+<p>Once you’ve created an account, open the terminal and run the following command (replace “username” with your username):</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ssh</span> username@ssh.rc.byu.edu</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<blockquote class="blockquote">
+<p><strong>Note:</strong> You will be required to set up two-factor authentication when you first log in. Read about it <a href="https://rc.byu.edu/wiki/?id=Two-Factor+Authentication">here</a>. Since BYU uses DUO, I find this the easiest to use. But you can use whatever authentication app you want.</p>
+</blockquote>
+<p>Every time you log into the terminal, you will be prompted to enter your password and authentication code. You will then be placed in the <code>/home/username</code> directory. This is where you will store and run all the files.</p>
+</section>
+<section id="set-up-directories" class="level3">
+<h3 class="anchored" data-anchor-id="set-up-directories">Set up directories</h3>
+<p>Using the command <code>mkdir folder_name</code>, make the following file paths in the supercomputer terminal in the order given below. This will keep your workspace organized:</p>
+<ul>
+<li><code>/home/username/point_cloud</code></li>
+<li><code>/home/username/point_cloud/py</code></li>
+<li><code>/home/username/point_cloud/scjobs</code></li>
+<li><code>/home/username/point_cloud/data</code></li>
+<li><code>/home/username/point_cloud/data/log_out</code></li>
+</ul>
+<p>For example:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> /home/username/point_cloud</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="install-a-container-engine" class="level3">
+<h3 class="anchored" data-anchor-id="install-a-container-engine">Install a container engine</h3>
+<p>A major part of the code’s backbone is built upon the point cloud densifier code from <a href="https://github.com/opendronemap/ODM">OpenDroneMap</a>. In order to run the pipeline, you’ll need a container engine:</p>
+<ul>
+<li><p><strong>If running locally:</strong> <a href="https://www.docker.com/">Docker</a> (uses the <code>opendronemap/odm:latest</code> image, pulled automatically on first run). Not suggested due to the amount of computational power needed. If you must use local, talk to Connor first.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker://opendronemap/odm:latest</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div></li>
+<li><p><strong>Using the BYU supercomputer:</strong> <a href="https://apptainer.org/">Apptainer</a>. Apptainer may work locally as well; this has not been verified. Docker for sure does not work on the BYU supercomputer.</p>
+<p>Apptainer isn’t on your <code>PATH</code> by default — load it first, every time you start a new shell session. This command is placed in each .sh job, so it will run automatically each time you submit one.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">module</span> load apptainer</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Pull the image, then convert it into a sandbox (a plain, uncompressed directory). This is required, not optional — some compute nodes on the BYU supercomputer can’t mount a <code>.sif</code> file directly (fails with a <code>squashfuse_ll ... fuse: device not found</code> error), but a sandbox sidesteps that since it doesn’t need FUSE to build or to run against.</p>
+<p>In other words, run the following commands on the supercomputer, under the <code>/home/username/point_cloud/py</code> directory.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">apptainer</span> pull odm.sif docker://opendronemap/odm:latest</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">apptainer</span> build <span class="at">--sandbox</span> odm_sandbox odm.sif</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div></li>
+</ul>
+</section>
+<section id="upload-the-code-and-install-packages" class="level3">
+<h3 class="anchored" data-anchor-id="upload-the-code-and-install-packages">Upload the code and install packages</h3>
+<p>Upload the <code>py</code> and <code>scjobs</code> folders to their respective folders in the supercomputer. Upload <code>requirements.txt</code> to <code>/home/username</code>.</p>
+<blockquote class="blockquote">
+<p><strong>Note:</strong> See the <a href="#appendix">Appendix</a> at the bottom of this page to see how to upload files to the supercomputer.</p>
+</blockquote>
+<p>Once the above is done, run the following command in the supercomputer to install the required packages:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="at">-r</span> requirements.txt</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>You are now ready to run the pipeline using the BYU supercomputer! 🥳</p>
+<blockquote class="blockquote">
+<p><strong>Note:</strong> <a href="../py/auto_reconstruct.py"><code>py/auto_reconstruct.py</code></a> hardcodes the path to the sandbox (<code>APPTAINER_IMAGE</code>) for the Apptainer/Linux case, since that path lives outside this repo and differs per machine/account. It is currently hard coded to <code>/home/willicon/point_cloud/odm_sandbox</code>. When you download the repository, update that path at the top of the file to point at wherever you built <code>odm_sandbox</code> above.</p>
+</blockquote>
+</section>
+</section>
+<section id="reconstruction-photos-to-point-cloud" class="level2">
+<h2 class="anchored" data-anchor-id="reconstruction-photos-to-point-cloud">2. Reconstruction: photos to point cloud</h2>
+<blockquote class="blockquote">
+<p><strong>Note:</strong> Replace “username” with your username when it shows up in the instructions. See the <a href="#appendix">Appendix</a> for specific help on how to upload, download, and run files on the supercomputer.</p>
+</blockquote>
+<p>Open the terminal and upload your photos folder to the supercomputer. Input your username and authentication code and then wait for the files to finish uploading.</p>
+<p>In the terminal, run <code>ssh username@ssh.rc.byu.edu</code> and enter your password and authentication code. Now that you are in the supercomputer terminal, if you have set up the file paths, run:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">nano</span> /home/username/point_cloud/scjobs/auto_reconstruct.sh</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>This will edit the script that runs the code to create the point cloud.</p>
+<p>Edit the Python file path under “Run the pipeline” note, (e.g.&nbsp;<code>/home/willicon/point_cloud/data/normandy</code>) so that it reflects the path to your folder with the images. Press <kbd>Control</kbd> + <kbd>O</kbd> and <kbd>Enter</kbd> to save the file, and <kbd>Control</kbd> + <kbd>X</kbd> to exit.</p>
+<p>Change into the folder that will hold all the files showing the terminal output:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /home/username/point_cloud/data/log_out</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Then submit your job:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">sbatch</span> /home/username/point_cloud/scjobs/auto_reconstruct.sh</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>It will say “Submitted batch job” and then the project number. If you want to follow the code output, use <code>tail -f reconstruct_&lt;jobnumber&gt;.out</code>. Run this in the same location you ran the <code>sbatch</code> line.</p>
+<p>Once the process is running, you can edit the scjobs file to run another job.</p>
+<section id="configuration" class="level3">
+<h3 class="anchored" data-anchor-id="configuration">Configuration</h3>
+<p>Tuning lives in <a href="../py/config.yml"><code>py/config.yml</code></a>’s <code>reconstruction:</code> section. The <strong>same file</strong> is used for both parts of the pipeline. Run <code>nano py/config.yml</code> before submitting a job to change any of these; everything left at <code>null</code> is skipped entirely, so OpenSfM’s own stock default applies. See <code>README.md</code> or <code>config.yml</code> for explanations.</p>
+<p>If you want a different config for a specific project instead of editing <code>py/config.yml</code> in place, save your own copy anywhere and pass <code>--config /path/to/your.yml</code> in the .sh file.</p>
+</section>
+<section id="output" class="level3">
+<h3 class="anchored" data-anchor-id="output">Output</h3>
+<p>This produces the following inside <code>data/&lt;project_name&gt;/</code> itself.</p>
+<ul>
+<li><code>images/</code>: your source photos, sorted out of any loose files that were sitting directly in the project folder</li>
+<li><code>reconstruction.json</code>: camera poses for every registered image; read by <code>building_extractor.py</code> later for precision-cropping the best photo per building</li>
+<li><code>scene_dense.ply</code>: the point cloud itself, the main deliverable of this stage.</li>
+<li><code>config.yaml</code>: OpenSfM’s own per-project config; <code>auto_reconstruct.py</code> writes <code>processes</code> here every run, plus any <code>reconstruction.*</code> keys you set to something other than <code>null</code>, leaving everything else at OpenSfM’s stock default</li>
+</ul>
+<p>Everything else in the folder (<code>features/</code>, <code>matches/</code>, <code>undistorted/</code> depthmaps and undistorted images, <code>tracks.csv</code>, <code>camera_models.json</code>, <code>*.MRK</code> files, etc.) is OpenSfM/ODM’s own working stuff. <code>building_extractor.py</code> never reads any of it.</p>
+<blockquote class="blockquote">
+<p><strong>Note:</strong> Set <code>reconstruction.cleanup: true</code> in <code>config.yml</code> to have a successful run delete all of that working state automatically, leaving only <code>images/</code>, <code>reconstruction.json</code>, and <code>scene_dense.ply</code>. Skipped automatically if <code>scene_dense.ply</code> wasn’t produced, so a failed run stays debuggable.</p>
+</blockquote>
+</section>
+</section>
+<section id="extraction-point-cloud-to-buildings" class="level2">
+<h2 class="anchored" data-anchor-id="extraction-point-cloud-to-buildings">3. Extraction: point cloud to buildings</h2>
+<blockquote class="blockquote">
+<p><strong>Note:</strong> Since the process is similar to reconstruction, the following instructions are condensed.</p>
+</blockquote>
+<p>In the supercomputer, change to the log output folder so that the outputs land in the correct place:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /home/username/point_cloud/data/log_out</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Edit the extraction job script:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">nano</span> /home/username/point_cloud/scjobs/extract_buildings.sh</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Edit the Python file path under “Run the pipeline” note, (e.g.&nbsp;<code>/home/willicon/point_cloud/data/normandy</code>) so that it reflects the path to your folder with the images. Press <kbd>Control</kbd> + <kbd>O</kbd> and <kbd>Enter</kbd> to save the file, and <kbd>Control</kbd> + <kbd>X</kbd> to exit.</p>
+<p>Submit your job and wait for it to finish:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">sbatch</span> /home/username/point_cloud/scjobs/extract_buildings.sh</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The <code>.out</code> file is in the form of <code>house_&lt;jobnumber&gt;.out</code>.</p>
+<p>While it runs, you can edit the <code>.sh</code> file to run other jobs.</p>
+<section id="configuration-1" class="level3">
+<h3 class="anchored" data-anchor-id="configuration-1">Configuration</h3>
+<p>All settings live in <a href="../py/config.yml"><code>py/config.yml</code></a>. The <strong>same file</strong> is used for both parts of the pipeline. Run <code>nano py/config.yml</code> before submitting a job to change any of these; everything left at <code>null</code> is skipped entirely, so OpenSfM’s own stock default applies. See <code>README.md</code> or <code>config.yml</code> for explanations.</p>
+<p>If you want a different config for a specific project instead of editing <code>py/config.yml</code> in place, save your own copy anywhere and pass <code>--config /path/to/your.yml</code>.</p>
+</section>
+<section id="output-1" class="level3">
+<h3 class="anchored" data-anchor-id="output-1">Output</h3>
+<p>This produces, in the folder <code>data/&lt;project_name&gt;/analysis_&lt;project_name&gt;_v9/</code>, the following:</p>
+<ul>
+<li><p><code>measurements.csv</code>: one row per building: area (sqft), volume (cuft), height (ft), UTM + lat/lon location, source image references, and two review flags (<code>Needs_Review</code> for likely vegetation contamination, <code>Possible_Vehicle</code> for candidates small/short enough that they might be a parked car rather than a building. Source photos come in two views, each with its own three columns following the same <code>{View}_Best_Image</code> / <code>{View}_Original_Image</code> / <code>{View}_Image_Precision_Cropped</code> pattern:</p>
+<ul>
+<li><p><code>Nadir_*</code>: straight-down (DJI gimbal pitch at or steeper than <code>imagery.nadir_pitch_threshold</code> in <code>config.yml</code>, default -65.0°)</p></li>
+<li><p><code>Oblique_*</code>: the shallower of the site’s two survey passes, if it has one — not a true side-on elevation shot, but steep enough to still show real wall/facade detail a nadir shot can’t.</p>
+<blockquote class="blockquote">
+<p><strong>Warning:</strong> The default -65° threshold is not universal. Check the “Indexed N nadir + M oblique” line in a run’s log against what you actually expect before trusting either view on a new site, and adjust <code>imagery.nadir_pitch_threshold</code> in the config if it looks wrong.</p>
+</blockquote>
+<p><code>{View}_Image_Precision_Cropped</code> says whether that view’s <code>Best_Image</code> / <code>Original_Image</code> is a verified precision crop (projected from the building’s real 3D footprint into a registered photo) or just the closest-by-GPS fallback photo, uncropped and unverified. Only trust the image as accurate when this is <code>True</code>. Oblique has no fallback at all: if precision cropping fails for that view, <code>Oblique_Best_Image</code> is <code>N/A</code> and there’s no oblique photo for that building.</p></li>
+</ul></li>
+<li><p><code>individual_houses/</code>: per-building <code>.ply</code> point clouds</p></li>
+<li><p><code>best_images/</code> and <code>best_images_cropped/</code> — source photos and crops for each building, one pair per view (<code>{house_ID}_nadir.jpg</code> / <code>{house_ID}_oblique.jpg</code>). A cropped file only exists when that view’s <code>Image_Precision_Cropped</code> is <code>True</code></p></li>
+</ul>
+</section>
+</section>
+</section>
+<section id="appendix" class="level1">
+<h1>Appendix</h1>
+<section id="uploading-to-and-downloading-from-the-supercomputer" class="level2">
+<h2 class="anchored" data-anchor-id="uploading-to-and-downloading-from-the-supercomputer">Uploading to and downloading from the supercomputer</h2>
+<p>To upload a folder/file to the supercomputer, you’ll run a command composed of the following pieces:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">scp</span> <span class="at">-r</span> /path/from/local/computer username@ssh.rc.byu.edu:/home/path/to/output/location</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<ul>
+<li><code>scp -r</code> tells the terminal you want to access a remote network, and that you want to transfer a folder/file to or from that network.</li>
+<li><code>/path/from/local/computer</code>, the first path, is the file/folder that you want to send. The path <code>/Users/connor/Desktop/normandy</code> will send the <code>normandy</code> folder from my local desktop.</li>
+<li><code>username@ssh.rc.byu.edu:/home/username/point_cloud/data</code>, the second path, is the location where you want to send the file. This path <code>username@ssh.rc.byu.edu:/home/username/point_cloud/data</code> will send the file/folder to the BYU supercomputer in the <code>point_cloud/data</code> folder.</li>
+</ul>
+<blockquote class="blockquote">
+<p><strong>Note:</strong> When uploading, always place the local path first, then the supercomputer path. <strong>Linux, what the BYU computer runs, is case sensitive.</strong> So keep that in mind.</p>
+</blockquote>
+<p>To download a folder/file from the supercomputer, switch the second and third argument. Place the supercomputer path first, then the local path, like this:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu">scp</span> <span class="at">-r</span> willicon@ssh.rc.byu.edu:/home/willicon/point_cloud/data /Users/willicon/Desktop/normandy/scene_dense.ply</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Whenever you upload or download, you will have to input your password and authentication code. It’s annoying, but there is no way around it.</p>
+</section>
+<section id="creating-and-running-jobs-on-the-byu-supercomputer" class="level2">
+<h2 class="anchored" data-anchor-id="creating-and-running-jobs-on-the-byu-supercomputer">Creating and running jobs on the BYU supercomputer</h2>
+<p>The BYU supercomputer uses <code>Slurm</code> commands to run its jobs. Their <a href="https://rc.byu.edu/wiki/?id=Slurm">documentation</a> and <a href="https://www.youtube.com/watch?v=i1r9BxHBG0I&amp;list=PL326A5EB4E3B16FED">videos</a> are old and somewhat outdated, but worth a look through. Below is the minimum you need to run the pipeline.</p>
+<section id="nano" class="level3">
+<h3 class="anchored" data-anchor-id="nano">nano</h3>
+<p>This command lets you edit files that are on the supercomputer. Type <code>nano</code> and then the file path to the file you want to edit. Remember, Linux is case sensitive.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="fu">nano</span> /home/username/point_cloud/scjobs/auto_reconstruct.sh</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Press <kbd>Control</kbd> + <kbd>O</kbd> and <kbd>Enter</kbd> to save the file, and <kbd>Control</kbd> + <kbd>X</kbd> to exit.</p>
+</section>
+<section id="sbatch" class="level3">
+<h3 class="anchored" data-anchor-id="sbatch">sbatch</h3>
+<p>This command runs the job commands on the supercomputer. Like <code>nano</code>, type <code>sbatch</code> and then the path to the <code>.sh</code> file you want to run. Don’t try to run <code>.py</code> files, it won’t work.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">sbatch</span> /home/username/point_cloud/scjobs/auto_reconstruct.sh</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+</section>
+<section id="useful-supercomputer-commands" class="level2">
+<h2 class="anchored" data-anchor-id="useful-supercomputer-commands">Useful supercomputer commands</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Task</th>
+<th>Command</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Change file directory</td>
+<td><code>cd path/to/folder</code></td>
+<td></td>
+</tr>
+<tr class="even">
+<td>See all files/folders in the current directory</td>
+<td><code>ls</code></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td>Move a file</td>
+<td><code>mv /path/to/current/location /path/to/new/destination/</code></td>
+<td></td>
+</tr>
+<tr class="even">
+<td>Submit your job</td>
+<td><code>sbatch [name of .sh file where job script is saved]</code></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td>Edit a file</td>
+<td><code>nano path/to/file</code></td>
+<td><kbd>Control</kbd> + <kbd>O</kbd> to save, <kbd>Control</kbd> + <kbd>X</kbd> to exit</td>
+</tr>
+<tr class="even">
+<td>Check on the status of a job</td>
+<td><code>scontrol show job [job number]</code></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td>Check the status of all jobs</td>
+<td><code>squeue -u username</code></td>
+<td></td>
+</tr>
+<tr class="even">
+<td>Cancel jobs</td>
+<td><code>scancel [job ID(s)]</code></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td>Follow output for code</td>
+<td><code>tail -f (reconstruct or house)_(job number).out</code></td>
+<td>e.g.&nbsp;<code>tail -f reconstruct_1234567.out</code></td>
+</tr>
+<tr class="even">
+<td>Remove files</td>
+<td><code>rm filename1 filename2 etc</code></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td>Remove folders</td>
+<td><code>rm -r foldername</code></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

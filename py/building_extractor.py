@@ -22,7 +22,6 @@ import shutil
 import glob
 import cv2
 import argparse
-import yaml
 from sklearn.cluster import DBSCAN, KMeans
 from scipy.spatial import Delaunay, KDTree, ConvexHull
 from scipy.ndimage import binary_erosion, label, grey_opening, grey_closing, gaussian_filter, distance_transform_edt
@@ -35,6 +34,7 @@ from pyproj import Transformer
 import concurrent.futures
 from resource_monitor import detect_cpu_count, MemoryMonitor
 from reconstruction_leveling import read_dji_gimbal_attitude
+from pipeline_config import load_config
 
 # Line-buffer stdout: when redirected to a file (e.g. a SLURM .out log),
 # Python block-buffers by default and only flushes at exit. If the job gets
@@ -65,44 +65,6 @@ Run using: python extract_buildings_no_floor.py data/900EBlock
 
 EPSG_CODE = "EPSG:32612"
 NUM_CORES, _CORE_SOURCE = detect_cpu_count()
-
-# --- 0. CONFIG ---
-DEFAULT_CONFIG = {
-    "ground_model": {
-        "cell_size": 2.0,
-        "opening_span": 20.0,
-        "relevel": False,
-    },
-    "vehicle_rejection": {
-        "reject_small_structures": True,
-        "max_area_sqft": 800.0,
-        "max_height_ft": 16.0,
-    },
-    "imagery": {
-        "nadir_pitch_threshold": -65.0,
-    },
-    "performance": {
-        "ransac_max_fit_points": 50000,
-    },
-}
-
-def load_config(config_path):
-    """Loads config.yml, filling in anything missing (or the whole file, if
-    the path doesn't exist) from DEFAULT_CONFIG - a partial or absent config
-    is not an error, just uses the built-in default for whatever it doesn't
-    specify, section by section."""
-    cfg = {section: dict(values) for section, values in DEFAULT_CONFIG.items()}
-    if config_path and os.path.exists(config_path):
-        with open(config_path, 'r') as f:
-            user_cfg = yaml.safe_load(f) or {}
-        for section, values in user_cfg.items():
-            if section in cfg and isinstance(values, dict):
-                cfg[section].update(values)
-            else:
-                cfg[section] = values
-    else:
-        print(f"      [!] No config file found at {config_path} - using built-in defaults for every setting.")
-    return cfg
 
 # --- 1. LOCAL GROUND MODEL ---
 class LocalGroundModel:
@@ -265,7 +227,7 @@ def build_dual_spatial_image_index(image_dir, transformer, nadir_pitch_threshold
     split cleanly at -75, but the fir dataset's steepest pass only reaches
     -72 and needs a different threshold to split at all). An image with no
     readable gimbal telemetry (non-DJI drone, or tags missing) is classified
-    as nadir - matches this project's existing --depthmap-nadir-only
+    as nadir - matches this project's existing reconstruction.depthmap_nadir_only
     behavior of treating unclassifiable shots as the safe/inclusive default
     rather than silently losing them.
 
@@ -368,8 +330,8 @@ def calculate_alpha_shape(points_2d, alpha=1.2):
 
 # "Is this candidate substantial enough to bother with" - expressed in real
 # sqft, not raw point count. A fixed point count means a different physical
-# size depending on point density, which silently shifts with e.g.
-# --depthmap-resolution - the same "100 points" that meant ~36 sqft (a shed)
+# size depending on point density, which silently shifts with e.g. a higher
+# reconstruction.depthmap_resolution - the same "100 points" that meant ~36 sqft (a shed)
 # at ~30 pts/m^2 means ~2.7 sqft (a doormat) at ~400 pts/m^2. This is a low,
 # "clearly not just noise" bar - the real building-size decision happens
 # later (the Ratio_Area_to_Height KMeans threshold in step 9).
@@ -1779,7 +1741,7 @@ def process_reconstruction(args):
         # Fixed-count neighbor query (not a fixed-radius one): a query_ball_point
         # expansion here scales with local point density as well as candidate
         # count, so it goes quadratic as density increases (e.g. from a higher
-        # --depthmap-resolution reconstruction) - k=32 keeps per-candidate cost
+        # reconstruction.depthmap_resolution) - k=32 keeps per-candidate cost
         # bounded regardless of density.
         # Deliberately NOT converted to an area/density-based equivalent like the
         # count thresholds below - switching this back to a radius-based query
