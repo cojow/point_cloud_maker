@@ -180,13 +180,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <ul>
 <li><p><strong>If running locally:</strong> <a href="https://www.docker.com/">Docker</a> (uses the <code>opendronemap/odm:latest</code> image, pulled automatically on first run). Not suggested due to the amount of computational power needed. If you must use local, talk to Connor first.</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker://opendronemap/odm:latest</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div></li>
-<li><p><strong>Using the BYU supercomputer:</strong> <a href="https://apptainer.org/">Apptainer</a>. Apptainer may work locally as well; this has not been verified. Docker for sure does not work on the BYU supercomputer.</p>
-<p>Apptainer isn’t on your <code>PATH</code> by default — load it first, every time you start a new shell session. This command is placed in each .sh job, so it will run automatically each time you submit one.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">module</span> load apptainer</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Pull the image, then convert it into a sandbox (a plain, uncompressed directory). This is required, not optional — some compute nodes on the BYU supercomputer can’t mount a <code>.sif</code> file directly (fails with a <code>squashfuse_ll ... fuse: device not found</code> error), but a sandbox sidesteps that since it doesn’t need FUSE to build or to run against.</p>
+<li><p><strong>Using the BYU supercomputer:</strong> <a href="https://apptainer.org/">Apptainer</a>. Pull the image, then convert it into a sandbox (a plain, uncompressed directory). This must to be done. Some compute nodes on the BYU supercomputer can’t mount a <code>.sif</code> file directly (fails with a <code>squashfuse_ll ... fuse: device not found</code> error), but a sandbox sidesteps that since it doesn’t need FUSE to build or to run against.</p>
 <p>In other words, run the following commands on the supercomputer, under the <code>/home/username/point_cloud/py</code> directory.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">apptainer</span> pull odm.sif docker://opendronemap/odm:latest</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">apptainer</span> build <span class="at">--sandbox</span> odm_sandbox odm.sif</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div></li>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">apptainer</span> pull odm.sif docker://opendronemap/odm:latest</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">apptainer</span> build <span class="at">--sandbox</span> odm_sandbox odm.sif</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Apptainer isn’t on your <code>PATH</code> by default so it needs to be loaded it first, every time you start a new shell session. To do this, place this command at the beganing of each .sh job, so it will run automatically each time you submit one.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">module</span> load apptainer</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<blockquote class="blockquote">
+<p><strong>Note:</strong> Apptainer may work locally as well; this has not been verified. Docker for sure does not work on the BYU supercomputer.</p>
+</blockquote></li>
 </ul>
 </section>
 <section id="upload-the-code-and-install-packages" class="level3">
@@ -195,11 +197,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <blockquote class="blockquote">
 <p><strong>Note:</strong> See the <a href="#appendix">Appendix</a> at the bottom of this page to see how to upload files to the supercomputer.</p>
 </blockquote>
-<p>Once the above is done, run the following command in the supercomputer to install the required packages:</p>
+<p>Once the above is done, run the following command in the supercomputer to install the required packages. Make sure to be in your “home/username” directory.</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="at">-r</span> requirements.txt</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>You are now ready to run the pipeline using the BYU supercomputer! 🥳</p>
 <blockquote class="blockquote">
-<p><strong>Note:</strong> <a href="../py/auto_reconstruct.py"><code>py/auto_reconstruct.py</code></a> hardcodes the path to the sandbox (<code>APPTAINER_IMAGE</code>) for the Apptainer/Linux case, since that path lives outside this repo and differs per machine/account. It is currently hard coded to <code>/home/willicon/point_cloud/odm_sandbox</code>. When you download the repository, update that path at the top of the file to point at wherever you built <code>odm_sandbox</code> above.</p>
+<p><strong>Note:</strong> <a href="../py/auto_reconstruct.py"><code>py/auto_reconstruct.py</code></a> hardcodes the path to the sandbox (<code>APPTAINER_IMAGE</code>) for the Apptainer/Linux case, since that path lives outside this repo and differs per machine/account. It is currently hard coded to <code>/home/willicon/point_cloud/odm_sandbox</code>. When you download the repository, update that path at the top of the file to point at wherever you built <code>odm_sandbox</code> above. See <a href="#appendix">Appendix</a> for how to edit files in the computer.</p>
 </blockquote>
 </section>
 </section>
@@ -213,15 +215,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">nano</span> /home/username/point_cloud/scjobs/auto_reconstruct.sh</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>This will edit the script that runs the code to create the point cloud.</p>
 <p>Edit the Python file path under “Run the pipeline” note, (e.g.&nbsp;<code>/home/willicon/point_cloud/data/normandy</code>) so that it reflects the path to your folder with the images. Press <kbd>Control</kbd> + <kbd>O</kbd> and <kbd>Enter</kbd> to save the file, and <kbd>Control</kbd> + <kbd>X</kbd> to exit.</p>
-<p>Change into the folder that will hold all the files showing the terminal output:</p>
+<p>Change into the folder that will hold all the files showing the terminal output. To keep track of the code logs, run all jobs in this directory.</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /home/username/point_cloud/data/log_out</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Then submit your job:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">sbatch</span> /home/username/point_cloud/scjobs/auto_reconstruct.sh</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>It will say “Submitted batch job” and then the project number. If you want to follow the code output, use <code>tail -f reconstruct_&lt;jobnumber&gt;.out</code>. Run this in the same location you ran the <code>sbatch</code> line.</p>
+<p>It will say “Submitted batch job” and then the project number. If you want to follow the code output, use <code>tail -f reconstruct_&lt;jobnumber&gt;.out</code>. Run this in the same location you ran the <code>sbatch</code> line, which should be the log_out folder.</p>
 <p>Once the process is running, you can edit the scjobs file to run another job.</p>
 <section id="configuration" class="level3">
 <h3 class="anchored" data-anchor-id="configuration">Configuration</h3>
-<p>Tuning lives in <a href="../py/config.yml"><code>py/config.yml</code></a>’s <code>reconstruction:</code> section. The <strong>same file</strong> is used for both parts of the pipeline. Run <code>nano py/config.yml</code> before submitting a job to change any of these; everything left at <code>null</code> is skipped entirely, so OpenSfM’s own stock default applies. See <code>README.md</code> or <code>config.yml</code> for explanations.</p>
+<p>Configuation resides in<a href="../py/config.yml"><code>py/config.yml</code></a>’s <code>reconstruction:</code> section. The <strong>same file</strong> is used for both parts of the pipeline. Run <code>nano py/config.yml</code> before submitting a job to change any of these; anything left at <code>null</code> is skipped entirely, so OpenSfM’s own stock default applies. See <code>README.md</code> or <code>config.yml</code> for explanations.</p>
 <p>If you want a different config for a specific project instead of editing <code>py/config.yml</code> in place, save your own copy anywhere and pass <code>--config /path/to/your.yml</code> in the .sh file.</p>
 </section>
 <section id="output" class="level3">
@@ -230,12 +232,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <ul>
 <li><code>images/</code>: your source photos, sorted out of any loose files that were sitting directly in the project folder</li>
 <li><code>reconstruction.json</code>: camera poses for every registered image; read by <code>building_extractor.py</code> later for precision-cropping the best photo per building</li>
-<li><code>scene_dense.ply</code>: the point cloud itself, the main deliverable of this stage.</li>
+<li><code>scene_dense.ply</code>: the point cloud itself, the main deliverable of this stage</li>
 <li><code>config.yaml</code>: OpenSfM’s own per-project config; <code>auto_reconstruct.py</code> writes <code>processes</code> here every run, plus any <code>reconstruction.*</code> keys you set to something other than <code>null</code>, leaving everything else at OpenSfM’s stock default</li>
 </ul>
-<p>Everything else in the folder (<code>features/</code>, <code>matches/</code>, <code>undistorted/</code> depthmaps and undistorted images, <code>tracks.csv</code>, <code>camera_models.json</code>, <code>*.MRK</code> files, etc.) is OpenSfM/ODM’s own working stuff. <code>building_extractor.py</code> never reads any of it.</p>
 <blockquote class="blockquote">
-<p><strong>Note:</strong> Set <code>reconstruction.cleanup: true</code> in <code>config.yml</code> to have a successful run delete all of that working state automatically, leaving only <code>images/</code>, <code>reconstruction.json</code>, and <code>scene_dense.ply</code>. Skipped automatically if <code>scene_dense.ply</code> wasn’t produced, so a failed run stays debuggable.</p>
+<p><strong>Note:</strong> Everything else in the folder (<code>features/</code>, <code>matches/</code>, <code>undistorted/</code> depthmaps and undistorted images, <code>tracks.csv</code>, <code>camera_models.json</code>, <code>*.MRK</code> files, etc.) is OpenSfM/ODM’s own working stuff. <code>building_extractor.py</code> never reads any of it. Set <code>reconstruction.cleanup: true</code> in <code>config.yml</code> to have a successful run delete all of that working state automatically, leaving only <code>images/</code>, <code>reconstruction.json</code>, and <code>scene_dense.ply</code>. Skipped automatically if <code>scene_dense.ply</code> wasn’t produced, so a failed run stays debuggable.</p>
 </blockquote>
 </section>
 </section>

@@ -85,19 +85,8 @@ pipeline, you'll need a container engine:
   ```
 
 - **Using the BYU supercomputer:** [Apptainer](https://apptainer.org/). 
-  Apptainer may work locally as well; this has not been verified. 
-  Docker for sure does not work on the BYU supercomputer.
-
-  Apptainer isn't on your `PATH` by default — load it first, every time you start
-  a new shell session. 
-  This command is placed in each .sh job, so it will run automatically each time you submit one.
-
-  ```bash
-  module load apptainer
-  ```
-
   Pull the image, then convert it into a sandbox (a plain, uncompressed
-  directory). This is required, not optional — some compute nodes on the BYU
+  directory). This must to be done. Some compute nodes on the BYU
   supercomputer can't mount a `.sif` file directly (fails with a
   `squashfuse_ll ... fuse: device not found` error), but a sandbox sidesteps that
   since it doesn't need FUSE to build or to run against.
@@ -105,10 +94,21 @@ pipeline, you'll need a container engine:
   In other words, run the following commands on the supercomputer, 
   under the `/home/username/point_cloud/py` directory. 
 
-  ```bash
+   ```bash
   apptainer pull odm.sif docker://opendronemap/odm:latest
   apptainer build --sandbox odm_sandbox odm.sif
   ```
+
+  Apptainer isn't on your `PATH` by default so it needs to be loaded it first, every time you start
+  a new shell session. 
+  To do this, place this command at the beganing of each .sh job, so it will run automatically each time you submit one.
+
+  ```bash
+  module load apptainer
+  ```
+
+  > **Note:** Apptainer may work locally as well; this has not been verified. 
+  > Docker for sure does not work on the BYU supercomputer.
 
 ### Upload the code and install packages
 
@@ -119,7 +119,7 @@ supercomputer. Upload `requirements.txt` to `/home/username`.
 > to upload files to the supercomputer.
 
 Once the above is done, run the following command in the supercomputer to install
-the required packages:
+the required packages. Make sure to be in your "home/username" directory.
 
 ```bash
 pip install -r requirements.txt
@@ -133,6 +133,7 @@ You are now ready to run the pipeline using the BYU supercomputer! 🥳
 > It is currently hard coded to `/home/willicon/point_cloud/odm_sandbox`.
 > When you download the repository, update that path at the top of the file to point at
 > wherever you built `odm_sandbox` above.
+> See [Appendix](#appendix) for how to edit files in the computer.
 
 ## 2. Reconstruction: photos to point cloud
 
@@ -156,7 +157,7 @@ Edit the Python file path under "Run the pipeline" note,
 Press <kbd>Control</kbd> + <kbd>O</kbd> and <kbd>Enter</kbd> to save the file, 
 and <kbd>Control</kbd> + <kbd>X</kbd> to exit.
 
-Change into the folder that will hold all the files showing the terminal output:
+Change into the folder that will hold all the files showing the terminal output. To keep track of the code logs, run all jobs in this directory. 
 
 ```bash
 cd /home/username/point_cloud/data/log_out
@@ -170,16 +171,16 @@ sbatch /home/username/point_cloud/scjobs/auto_reconstruct.sh
 
 It will say "Submitted batch job" and then the project number. 
 If you want to follow the code output, use `tail -f reconstruct_<jobnumber>.out`. 
-Run this in the same location you ran the `sbatch` line.
+Run this in the same location you ran the `sbatch` line, which should be the log_out folder. 
 
 Once the process is running, you can edit the scjobs file to run another job.
 
 ### Configuration
 
-Tuning lives in [`py/config.yml`](../py/config.yml)'s `reconstruction:` section. 
+Configuation resides in[`py/config.yml`](../py/config.yml)'s `reconstruction:` section. 
 The **same file** is used for both parts of the pipeline. 
 Run `nano py/config.yml` before submitting a job to change any of these; 
-everything left at `null` is skipped entirely, so OpenSfM's own stock default applies.
+anything left at `null` is skipped entirely, so OpenSfM's own stock default applies.
 See `README.md` or `config.yml` for explanations.
 
 If you want a different config for a specific project instead of editing `py/config.yml` in place, 
@@ -193,16 +194,14 @@ This produces the following inside `data/<project_name>/` itself.
   directly in the project folder
 - `reconstruction.json`: camera poses for every registered image; read by
   `building_extractor.py` later for precision-cropping the best photo per building
-- `scene_dense.ply`: the point cloud itself, the main deliverable of this stage.
+- `scene_dense.ply`: the point cloud itself, the main deliverable of this stage
 - `config.yaml`: OpenSfM's own per-project config; `auto_reconstruct.py` writes
   `processes` here every run, plus any `reconstruction.*` keys you set to
   something other than `null`, leaving everything else at OpenSfM's stock default
 
-Everything else in the folder (`features/`, `matches/`, `undistorted/` depthmaps
-and undistorted images, `tracks.csv`, `camera_models.json`, `*.MRK` files, etc.) is OpenSfM/ODM's own working stuff. 
-`building_extractor.py` never reads any of it.
-
-> **Note:** Set `reconstruction.cleanup: true` in `config.yml` to have a
+> **Note:** Everything else in the folder (`features/`, `matches/`, `undistorted/` depthmaps
+and undistorted images, `tracks.csv`, `camera_models.json`, `*.MRK` files, etc.) is OpenSfM/ODM's own working stuff.
+> `building_extractor.py` never reads any of it. Set `reconstruction.cleanup: true` in `config.yml` to have a
 > successful run delete all of that working state automatically, leaving only
 > `images/`, `reconstruction.json`, and `scene_dense.ply`. 
 > Skipped automatically if `scene_dense.ply` wasn't produced, so a failed run stays debuggable.
