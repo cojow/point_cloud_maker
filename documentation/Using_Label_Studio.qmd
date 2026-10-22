@@ -52,19 +52,116 @@ pip install label-studio
 
 ### Start the app
 
-Run:
+See below for how to run the program.
 
-```bash
-label-studio
-```
-
-> **Note:** Press <kbd>Control</kbd> + <kbd>C</kbd> in the terminal to quit the application.
+> **Note:** To read the images straight from the Box folder, start the app with the commands in
+> [Using the Box Folder](#using-the-box-folder) instead.
 
 ## Getting Started
 
 Set up an account when you first run the program.
 
+
+
 > **Important:** Don't forget this login or you won't be able to access your projects.
+
+
+> NEED TO DO
+> Set up how to link the Box folder to label studio session so that images don't need to be downloaded.
+> Add a code that will pre-shrink the images? Maybe? 
+> Figure out how best to organize the training image datasets. Do I download the images from Label Studio? Or just the labels?
+
+
+
+## Using the Box Folder
+
+Label Studio can read the images straight from the Box folder on your computer.
+
+### Box setup
+
+Skip this if the Box folder already shows up on your computer.
+
+1. Download **Box Drive** from [box.com/resources/downloads](https://www.box.com/resources/downloads)
+   (Pick the Mac or Windows version) and run the installer.
+2. Open Box Drive and sign in with your Box account.
+3. Find the Box folder:
+   - **Mac:** in the Finder sidebar, under **Locations** → **Box**.
+   - **Windows:** in File Explorer, under **Box** in the left pane (it is the folder `C:\Users\<you>\Box`).
+4. Open it and find the folder with the images. If it isn't there, ask Connor to share it with your Box account.
+
+### Images on your computer
+If Label Studio isn't loading your images or is running slowly, do the following. 
+
+Right-click the folder with the images (in Finder or File Explorer) and choose **Always keep on device**.
+Box Drive starts downloading the folder to your computer. 
+Without this, Box only downloads each image the first time it is opened, which makes Label Studio slow and can leave images blank until the download finishes.
+
+> **Note:** This keeps a full copy of the folder on your computer, so make sure there is enough disk space.
+> To free it up later, right-click the folder and choose **Free up space**.
+
+### Start Label Studio with access to Box
+
+Use these commands instead of plain `label-studio`, every time you start the app:
+
+::: {.panel-tabset}
+#### Mac
+
+In Terminal:
+
+```bash
+conda activate label_studio
+export LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED=true
+export LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT="$HOME/Library/CloudStorage/Box-Box"
+label-studio
+```
+
+> **Mac:** `Box-Box` is where Box Drive keeps your Box files (on older macOS versions it is `~/Box`). 
+The first time, macOS may ask whether Terminal can access Box files. Click **Allow**.
+
+#### Windows
+
+In the **terminal**, replace `<you>` with your Windows username:
+
+```bat
+conda activate label_studio
+set LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED=true
+set LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT=C:\\Users\\<you>\\Box
+label-studio
+```
+> **Windows:** Type the backslashes doubled (`\\`), as Label Studio's documentation does, and don't put quotes around the path. 
+> If your Box folder is somewhere other than `C:\Users\<you>\Box`, use that path instead.
+
+:::
+
+> **Note:** Press <kbd>Control</kbd> + <kbd>C</kbd> in the terminal to quit the application.
+
+> **Note:** While it is running, Label Studio can read anything under the document root, so don't point it at a bigger folder than you need.
+
+### Connect the folder to a project {#connect_to_box}
+
+Do this after step 5 of [Beginning a New Project](#beginning-a-new-project), once the project is saved with its
+labeling code in place.
+
+1. Open the project, then go to **Settings** → **Cloud Storage** → **Add Source Storage**.
+2. Choose **Local Files** and click **Next**.
+3. **Storage Title:** the name of the image folder.
+4. **Absolute local path:** it starts out filled in with the document root. Add the rest of the path to the
+   image folder, for example:
+   - **Mac:** `/Users/<you>/Library/CloudStorage/Box-Box/<folder with the images>`
+   - **Windows:** `C:\\Users\\<you>\\Box\\<folder with the images>`
+
+   Click **Test connection**.
+5. **Import Method:** choose **Files**, which makes one task per image.
+6. **File Name Filter:** `.*\.(jpg|JPG|jpeg|JPEG|png)`
+7. Turn on **Scan all sub-folders** if the images are spread over several folders.
+8. Click **Load preview** to check the images being read, then **Save & Sync**.
+
+One task per image should now show up in the **Data Manager**. 
+To add more images later, put them in the Box folder and sync the storage again from **Settings** → **Cloud Storage**.
+
+> **Note:** Don't rename, move, or delete the images in Box after importing them, because each task points at the image's path.
+>
+> If images show up blank, check that Box has finished downloading the folder, that the path is inside the document root, and that Label Studio was started with the commands above.
 
 ## Beginning a New Project
 
@@ -72,22 +169,70 @@ Set up an account when you first run the program.
 2. **Add a project name**
    - Name it after the image folder name.
 3. **Data Import**
-   - Drag and drop all the images into it.
+   - If the images are in the Box folder, skip this step. You connect the folder after the project is saved (see [how to connect to the Box folder](#connect_to_box)).
+   - Otherwise, drag and drop all the images into it.
 4. **Labeling setup**
    - Select **"Object Detection with Bounding Boxes"**.
-   - Delete the Airport and Car example.
-   - Under **"Add label names"**, add the labels to be used, each on their own line.
+   - Switch the editor on the right from **Visual** to **Code**, delete everything in it, and paste in the following, depending on what you are annotating:
 
-   > **Important:** It is very important that the same order and number for labels is used every time.
+::: {.panel-tabset}
+#### Objects
+
+   ```xml
+   <View>
+     <Image name="image" value="$image"/>
+     <RectangleLabels name="label" toName="image">
+       <Label value="Car" category="0"/>
+       <Label value="Bike" category="1"/>
+       <Label value="Door" category="2"/>
+       <Label value="Garage" category="3"/>
+       <Label value="Aux Vehicle" category="4"/>
+     </RectangleLabels>
+   </View>
+   ```
+
+   | Number | Label       |
+   |:------:|:------------|
+   | 0      | Car         |
+   | 1      | Bike        |
+   | 2      | Door        |
+   | 3      | Garage      |
+   | 4      | Aux Vehicle |
+   > *Aux Vehicles* include, but are not limited to, the following: Scooter (electric), Boat, Trailer, ATV, RV.
+
+#### Building Classification
+   ```xml
+   <View>
+     <Image name="image" value="$image"/>
+     <RectangleLabels name="label" toName="image">
+       <Label value="Residential" category="0"/>
+       <Label value="Commercial" category="1"/>
+       <Label value="Apartment" category="2"/>
+       <Label value="Church" category="3"/>
+       <Label value="Aux Building" category="4"/>
+     </RectangleLabels>
+   </View>
+   ```
+
+   | Number | Label       |
+   |:------:|:------------|
+   | 0      | Residential |
+   | 1      | Commercial  |
+   | 2      | Apartment   |re
+   | 3      | Church      |
+   | 4      | Aux Building |
+   > *Aux Buildings* include, but are not limited to, the following: sheds. 
+:::
+   > **Important:** Use the same order and number for labels every time.
    > Each annotation will be defined by a number.
+   > Label Studio only saves the label's name, and works out the number when you export. 
+   > Without a `category`, it numbers the labels alphabetically, so adding a label later would renumber the others.
    > Not keeping numbers and labels lined up across annotations will ruin the object detection model training.
 
-   This is the running label list:
+   To add a label later, add it as the **last** `<Label>` line with the next number (e.g. `<Label value="Shed" category="5"/>`). 
+   Never change or reuse an existing number, and keep the lines in number order.
 
-   | Number | Label  |
-   |:------:|:-------|
-   | 1      | Car    |
-   | 2      | Window |
+   
 
 5. **Save Project.** This will take you to the annotation list.
 
@@ -98,9 +243,12 @@ Set up an account when you first run the program.
 - Make sure the entire object is in the bounding box. 
   There will be things that are not the object in each bounding box, but try to limit it.
 
-- Annotate every instance of each object in the photo, even if it's related to another house — such as a car in the neighboring house's driveway, or a window on a neighboring house.
+- Annotate every instance of each object in the photo, even if it's related to another house — such as a car in the neighboring house's driveway, or a door on a neighboring house.
   When training the software, it doesn't matter if everything relates to the subject.
   - This also applies to objects that are only partly in a picture. 
     The object detection model will still detect these.
 
-- Again, labels must always have the same numbers associated with them, such as 1 for car.
+- Again, labels must always have the same numbers associated with them, such as 0 for Car.
+
+### Exporting
+

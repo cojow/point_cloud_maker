@@ -1,15 +1,43 @@
-path: /home/willicon/training/training_data #/home/willicon/training/data # #absolute path to file with images and labels
+# Everything train.py needs lives in this file - edit it, then run train.py
+# (or submit scjobs/yolo_job_testbeta.sh).
+
+# --- Model ---
+model:
+  # true  = start a new model from `architecture` below.
+  # false = keep training from the weights of an earlier run (see resume_run).
+  new_model: true
+
+  # Ultralytics model: "yolo26" plus a size letter (n, s, m, l, x - bigger is
+  # slower but more accurate). Needs ultralytics>=8.4.0. A .yaml starts from
+  # random weights; use a .pt (e.g. yolo26n.pt) to start from COCO-pretrained
+  # weights instead.
+  architecture: yolo26n.yaml
+
+  # Only used when new_model is false: the folder in data/yolo/runs/ whose
+  # weights/last.pt training continues from.
+  resume_run: train
+
+# --- Training arguments ---
+# Passed straight to model.train(), so any Ultralytics train argument can be
+# added here (imgsz, batch, patience, ...). See
+# https://docs.ultralytics.com/modes/train/#train-settings
+training_args:
+  epochs: 500        # How many times the training will run through the training images.
+  device: [-1, -1]   # The two most idle GPUs. Use e.g. [0, 1] for specific GPUs, or mps on a Mac.
+
+# --- Dataset ---
+# "path:" (the folder holding the images and labels) is filled in by train.py - it is data/yolo/dataset in the repo.
 train: training/images #Train Images (relative to path)
 val: validation/images
 #building_seed50_2025_10_30_083646/images # Validation images (relative to path)
 
-#clases (Include all classes given in classes.txt file, in the order given there. )
+#classes (Include all classes given in classes.txt file, in the order given there. )
 names:
-  0: Apartment
-  1: Church
-  2: Commercial
-  3: Residential
-  4: School
+  0: Car
+  1: Bike
+  2: Door
+  3: Garage
+  4: Aux Vehicle
 
-  #NOTE: MAKE SURE THE CLASSES FROM THE ANNOTATIONS ARE ALWAYS IN THE SAME ORDER. 
-  #if not, you'll be training the model incorreclty. 
+  #NOTE: MAKE SURE THE CLASSES FROM THE ANNOTATIONS ARE ALWAYS IN THE SAME ORDER.
+  #if not, you'll be training the model incorreclty.

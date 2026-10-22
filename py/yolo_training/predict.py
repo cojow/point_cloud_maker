@@ -1,6 +1,9 @@
 from ultralytics import YOLO
 import pandas as pd
 import os
+import yaml
+
+from yolo_paths import RUNS_DIR, SETS_DIR
 
 def run_yolo_prediction(model_path, source_path, project_name, conf_threshold=None, save_csv=True, save_image=True):
     """
@@ -11,7 +14,8 @@ def run_yolo_prediction(model_path, source_path, project_name, conf_threshold=No
 
     # Predict arguments
     predict_args = {
-        "source": source_path,
+        "source": str(source_path),
+        "project": str(RUNS_DIR),
         "name": project_name,
         "show": False,
         "save": save_image,      
@@ -94,16 +98,16 @@ def run_yolo_prediction(model_path, source_path, project_name, conf_threshold=No
 # ---------------------------------------------------------
 if __name__ == "__main__":
     # --- CONFIGURATION ---
-    MODEL_PATH = "/Users/willicon/Desktop/dronemodeling_Logan/train_orem/weights/best.pt" 
-    SOURCE_PATH = "/Users/willicon/Desktop/orem_windsor_seed15/images" 
-    PROJECT_NAME = "orem_windsor"
-    SAVE_CSV = True 
-    
-    # Run the function using the hard-coded values above
+    # Everything you normally change (which run, which images, threshold, outputs) is set in config_predict.yaml
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "config_predict.yaml"), "r") as f:
+        cfg = yaml.safe_load(f)
+
+    # Run the function using the values from config_predict.yaml
     run_yolo_prediction(
-        model_path=MODEL_PATH, 
-        source_path=SOURCE_PATH, 
-        project_name=PROJECT_NAME,
-        save_csv=SAVE_CSV,
-        save_image= False # Default to True when running manually
+        model_path=RUNS_DIR / cfg["model"]["run"] / "weights" / "best.pt",
+        source_path=SETS_DIR / cfg["image_set"] / "images",
+        project_name=cfg["output_name"],
+        conf_threshold=cfg["conf_threshold"],
+        save_csv=cfg["save_csv"],
+        save_image=cfg["save_image"]
     )

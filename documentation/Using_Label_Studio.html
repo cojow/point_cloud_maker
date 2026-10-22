@@ -2,17 +2,23 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.8.27">
+<meta name="generator" content="quarto-1.10.18">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
 <title>Using Label Studio</title>
 <style>
-code{white-space: pre-wrap;}
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: min(4vw, 1.5em);}
-div.column{flex: auto; overflow-x: auto;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -61,15 +67,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="Using_Label_Studio_files/libs/clipboard/clipboard.min.js"></script>
 <script src="Using_Label_Studio_files/libs/quarto-html/quarto.js" type="module"></script>
 <script src="Using_Label_Studio_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="Using_Label_Studio_files/libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="Using_Label_Studio_files/libs/quarto-html/popper.min.js"></script>
 <script src="Using_Label_Studio_files/libs/quarto-html/tippy.umd.min.js"></script>
 <script src="Using_Label_Studio_files/libs/quarto-html/anchor.min.js"></script>
 <link href="Using_Label_Studio_files/libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="Using_Label_Studio_files/libs/quarto-html/quarto-syntax-highlighting-ed96de9b727972fe78a7b5d16c58bf87.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="Using_Label_Studio_files/libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="Using_Label_Studio_files/libs/bootstrap/bootstrap.min.js"></script>
 <link href="Using_Label_Studio_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="Using_Label_Studio_files/libs/bootstrap/bootstrap-a74871fe4945b66d259aafc266475145.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="Using_Label_Studio_files/libs/bootstrap/bootstrap-c2e55264ed47ce3b2e0326a2269f9400.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 
 
 </head>
@@ -90,10 +95,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#start-the-app" id="toc-start-the-app" class="nav-link" data-scroll-target="#start-the-app">Start the app</a></li>
   </ul></li>
   <li><a href="#getting-started" id="toc-getting-started" class="nav-link" data-scroll-target="#getting-started">Getting Started</a></li>
+  <li><a href="#using-the-box-folder" id="toc-using-the-box-folder" class="nav-link" data-scroll-target="#using-the-box-folder">Using the Box Folder</a>
+  <ul class="collapse">
+  <li><a href="#box-setup" id="toc-box-setup" class="nav-link" data-scroll-target="#box-setup">Box setup</a></li>
+  <li><a href="#images-on-your-computer" id="toc-images-on-your-computer" class="nav-link" data-scroll-target="#images-on-your-computer">Images on your computer</a></li>
+  <li><a href="#start-label-studio-with-access-to-box" id="toc-start-label-studio-with-access-to-box" class="nav-link" data-scroll-target="#start-label-studio-with-access-to-box">Start Label Studio with access to Box</a></li>
+  <li><a href="#connect_to_box" id="toc-connect_to_box" class="nav-link" data-scroll-target="#connect_to_box">Connect the folder to a project</a></li>
+  </ul></li>
   <li><a href="#beginning-a-new-project" id="toc-beginning-a-new-project" class="nav-link" data-scroll-target="#beginning-a-new-project">Beginning a New Project</a></li>
   <li><a href="#annotating-images" id="toc-annotating-images" class="nav-link" data-scroll-target="#annotating-images">Annotating Images</a>
   <ul class="collapse">
   <li><a href="#standards" id="toc-standards" class="nav-link" data-scroll-target="#standards">Standards</a></li>
+  <li><a href="#exporting" id="toc-exporting" class="nav-link" data-scroll-target="#exporting">Exporting</a></li>
   </ul></li>
   </ul>
 </nav>
@@ -150,10 +163,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="start-the-app" class="level3">
 <h3 class="anchored" data-anchor-id="start-the-app">Start the app</h3>
-<p>Run:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">label-studio</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>See below for how to run the program.</p>
 <blockquote class="blockquote">
-<p><strong>Note:</strong> Press <kbd>Control</kbd> + <kbd>C</kbd> in the terminal to quit the application.</p>
+<p><strong>Note:</strong> To read the images straight from the Box folder, start the app with the commands in <a href="#using-the-box-folder">Using the Box Folder</a> instead.</p>
 </blockquote>
 </section>
 </section>
@@ -163,29 +175,128 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <blockquote class="blockquote">
 <p><strong>Important:</strong> Don’t forget this login or you won’t be able to access your projects.</p>
 </blockquote>
+<blockquote class="blockquote">
+<p>NEED TO DO Set up how to link the Box folder to label studio session so that images don’t need to be downloaded. Add a code that will pre-shrink the images? Maybe? Figure out how best to organize the training image datasets. Do I download the images from Label Studio? Or just the labels?</p>
+</blockquote>
+</section>
+<section id="using-the-box-folder" class="level2">
+<h2 class="anchored" data-anchor-id="using-the-box-folder">Using the Box Folder</h2>
+<p>Label Studio can read the images straight from the Box folder on your computer.</p>
+<section id="box-setup" class="level3">
+<h3 class="anchored" data-anchor-id="box-setup">Box setup</h3>
+<p>Skip this if the Box folder already shows up on your computer.</p>
+<ol type="1">
+<li>Download <strong>Box Drive</strong> from <a href="https://www.box.com/resources/downloads">box.com/resources/downloads</a> (Pick the Mac or Windows version) and run the installer.</li>
+<li>Open Box Drive and sign in with your Box account.</li>
+<li>Find the Box folder:
+<ul>
+<li><strong>Mac:</strong> in the Finder sidebar, under <strong>Locations</strong> → <strong>Box</strong>.</li>
+<li><strong>Windows:</strong> in File Explorer, under <strong>Box</strong> in the left pane (it is the folder <code>C:\Users\&lt;you&gt;\Box</code>).</li>
+</ul></li>
+<li>Open it and find the folder with the images. If it isn’t there, ask Connor to share it with your Box account.</li>
+</ol>
+</section>
+<section id="images-on-your-computer" class="level3">
+<h3 class="anchored" data-anchor-id="images-on-your-computer">Images on your computer</h3>
+<p>If Label Studio isn’t loading your images or is running slowly, do the following.</p>
+<p>Right-click the folder with the images (in Finder or File Explorer) and choose <strong>Always keep on device</strong>. Box Drive starts downloading the folder to your computer. Without this, Box only downloads each image the first time it is opened, which makes Label Studio slow and can leave images blank until the download finishes.</p>
+<blockquote class="blockquote">
+<p><strong>Note:</strong> This keeps a full copy of the folder on your computer, so make sure there is enough disk space. To free it up later, right-click the folder and choose <strong>Free up space</strong>.</p>
+</blockquote>
+</section>
+<section id="start-label-studio-with-access-to-box" class="level3">
+<h3 class="anchored" data-anchor-id="start-label-studio-with-access-to-box">Start Label Studio with access to Box</h3>
+<p>Use these commands instead of plain <code>label-studio</code>, every time you start the app:</p>
+<div class="tabset-margin-container"></div><div class="panel-tabset">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-1-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-1" role="tab" aria-controls="tabset-1-1" aria-selected="true" href="">Mac</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-2" role="tab" aria-controls="tabset-1-2" aria-selected="false" href="">Windows</a></li></ul>
+<div class="tab-content">
+<div id="tabset-1-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-1-1-tab">
+<p>In Terminal:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">conda</span> activate label_studio</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED</span><span class="op">=</span>true</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT</span><span class="op">=</span><span class="st">"</span><span class="va">$HOME</span><span class="st">/Library/CloudStorage/Box-Box"</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="ex">label-studio</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<blockquote class="blockquote">
+<p><strong>Mac:</strong> <code>Box-Box</code> is where Box Drive keeps your Box files (on older macOS versions it is <code>~/Box</code>). The first time, macOS may ask whether Terminal can access Box files. Click <strong>Allow</strong>.</p>
+</blockquote>
+</div>
+<div id="tabset-1-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-2-tab">
+<p>In the <strong>terminal</strong>, replace <code>&lt;you&gt;</code> with your Windows username:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bat code-with-copy"><code class="sourceCode dosbat"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>conda activate label_studio</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="bu">set</span> <span class="va">LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED</span>=true</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="bu">set</span> <span class="va">LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT</span>=C:\\Users\\<span class="kw">&lt;</span>you<span class="kw">&gt;</span>\\Box</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="kw">label</span><span class="at">-studio</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<blockquote class="blockquote">
+<p><strong>Windows:</strong> Type the backslashes doubled (<code>\\</code>), as Label Studio’s documentation does, and don’t put quotes around the path. If your Box folder is somewhere other than <code>C:\Users\&lt;you&gt;\Box</code>, use that path instead.</p>
+</blockquote>
+</div>
+</div>
+</div>
+<blockquote class="blockquote">
+<p><strong>Note:</strong> Press <kbd>Control</kbd> + <kbd>C</kbd> in the terminal to quit the application.</p>
+</blockquote>
+<blockquote class="blockquote">
+<p><strong>Note:</strong> While it is running, Label Studio can read anything under the document root, so don’t point it at a bigger folder than you need.</p>
+</blockquote>
+</section>
+<section id="connect_to_box" class="level3">
+<h3 class="anchored" data-anchor-id="connect_to_box">Connect the folder to a project</h3>
+<p>Do this after step 5 of <a href="#beginning-a-new-project">Beginning a New Project</a>, once the project is saved with its labeling code in place.</p>
+<ol type="1">
+<li>Open the project, then go to <strong>Settings</strong> → <strong>Cloud Storage</strong> → <strong>Add Source Storage</strong>.</li>
+<li>Choose <strong>Local Files</strong> and click <strong>Next</strong>.</li>
+<li><strong>Storage Title:</strong> the name of the image folder.</li>
+<li><strong>Absolute local path:</strong> it starts out filled in with the document root. Add the rest of the path to the image folder, for example:
+<ul>
+<li><strong>Mac:</strong> <code>/Users/&lt;you&gt;/Library/CloudStorage/Box-Box/&lt;folder with the images&gt;</code></li>
+<li><strong>Windows:</strong> <code>C:\\Users\\&lt;you&gt;\\Box\\&lt;folder with the images&gt;</code></li>
+</ul>
+Click <strong>Test connection</strong>.</li>
+<li><strong>Import Method:</strong> choose <strong>Files</strong>, which makes one task per image.</li>
+<li><strong>File Name Filter:</strong> <code>.*\.(jpg|JPG|jpeg|JPEG|png)</code></li>
+<li>Turn on <strong>Scan all sub-folders</strong> if the images are spread over several folders.</li>
+<li>Click <strong>Load preview</strong> to check the images being read, then <strong>Save &amp; Sync</strong>.</li>
+</ol>
+<p>One task per image should now show up in the <strong>Data Manager</strong>. To add more images later, put them in the Box folder and sync the storage again from <strong>Settings</strong> → <strong>Cloud Storage</strong>.</p>
+<blockquote class="blockquote">
+<p><strong>Note:</strong> Don’t rename, move, or delete the images in Box after importing them, because each task points at the image’s path.</p>
+<p>If images show up blank, check that Box has finished downloading the folder, that the path is inside the document root, and that Label Studio was started with the commands above.</p>
+</blockquote>
+</section>
 </section>
 <section id="beginning-a-new-project" class="level2">
 <h2 class="anchored" data-anchor-id="beginning-a-new-project">Beginning a New Project</h2>
 <ol type="1">
-<li><p><strong>Create New Project</strong></p></li>
-<li><p><strong>Add a project name</strong></p>
+<li><strong>Create New Project</strong></li>
+<li><strong>Add a project name</strong>
 <ul>
 <li>Name it after the image folder name.</li>
 </ul></li>
-<li><p><strong>Data Import</strong></p>
+<li><strong>Data Import</strong>
 <ul>
-<li>Drag and drop all the images into it.</li>
+<li>If the images are in the Box folder, skip this step. You connect the folder after the project is saved (see <a href="#connect_to_box">how to connect to the Box folder</a>).</li>
+<li>Otherwise, drag and drop all the images into it.</li>
 </ul></li>
-<li><p><strong>Labeling setup</strong></p>
+<li><strong>Labeling setup</strong>
 <ul>
 <li>Select <strong>“Object Detection with Bounding Boxes”</strong>.</li>
-<li>Delete the Airport and Car example.</li>
-<li>Under <strong>“Add label names”</strong>, add the labels to be used, each on their own line.</li>
-</ul>
-<blockquote class="blockquote">
-<p><strong>Important:</strong> It is very important that the same order and number for labels is used every time. Each annotation will be defined by a number. Not keeping numbers and labels lined up across annotations will ruin the object detection model training.</p>
-</blockquote>
-<p>This is the running label list:</p>
+<li>Switch the editor on the right from <strong>Visual</strong> to <strong>Code</strong>, delete everything in it, and paste in the following, depending on what you are annotating:</li>
+</ul></li>
+</ol>
+<div class="tabset-margin-container"></div><div class="panel-tabset">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-2-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-2-1" role="tab" aria-controls="tabset-2-1" aria-selected="true" href="">Objects</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-2-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-2-2" role="tab" aria-controls="tabset-2-2" aria-selected="false" href="">Building Classification</a></li></ul>
+<div class="tab-content">
+<div id="tabset-2-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-2-1-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode xml code-with-copy"><code class="sourceCode xml"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">View</span>&gt;</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">Image</span> <span class="ot">name=</span><span class="st">"image"</span> <span class="ot">value=</span><span class="st">"$image"</span>/&gt;</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">RectangleLabels</span> <span class="ot">name=</span><span class="st">"label"</span> <span class="ot">toName=</span><span class="st">"image"</span>&gt;</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">Label</span> <span class="ot">value=</span><span class="st">"Car"</span> <span class="ot">category=</span><span class="st">"0"</span>/&gt;</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">Label</span> <span class="ot">value=</span><span class="st">"Bike"</span> <span class="ot">category=</span><span class="st">"1"</span>/&gt;</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">Label</span> <span class="ot">value=</span><span class="st">"Door"</span> <span class="ot">category=</span><span class="st">"2"</span>/&gt;</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">Label</span> <span class="ot">value=</span><span class="st">"Garage"</span> <span class="ot">category=</span><span class="st">"3"</span>/&gt;</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">Label</span> <span class="ot">value=</span><span class="st">"Aux Vehicle"</span> <span class="ot">category=</span><span class="st">"4"</span>/&gt;</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>  &lt;/<span class="kw">RectangleLabels</span>&gt;</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>&lt;/<span class="kw">View</span>&gt;</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <table class="caption-top table">
 <thead>
 <tr class="header">
@@ -195,16 +306,84 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </thead>
 <tbody>
 <tr class="odd">
-<td style="text-align: center;">1</td>
+<td style="text-align: center;">0</td>
 <td style="text-align: left;">Car</td>
 </tr>
 <tr class="even">
+<td style="text-align: center;">1</td>
+<td style="text-align: left;">Bike</td>
+</tr>
+<tr class="odd">
 <td style="text-align: center;">2</td>
-<td style="text-align: left;">Window</td>
+<td style="text-align: left;">Door</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">3</td>
+<td style="text-align: left;">Garage</td>
+</tr>
+<tr class="odd">
+<td style="text-align: center;">4</td>
+<td style="text-align: left;">Aux Vehicle</td>
 </tr>
 </tbody>
-</table></li>
-<li><p><strong>Save Project.</strong> This will take you to the annotation list.</p></li>
+</table>
+<blockquote class="blockquote">
+<p><em>Aux Vehicles</em> include, but are not limited to, the following: Scooter (electric), Boat, Trailer, ATV, RV.</p>
+</blockquote>
+</div>
+<div id="tabset-2-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-2-2-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode xml code-with-copy"><code class="sourceCode xml"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">View</span>&gt;</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">Image</span> <span class="ot">name=</span><span class="st">"image"</span> <span class="ot">value=</span><span class="st">"$image"</span>/&gt;</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">RectangleLabels</span> <span class="ot">name=</span><span class="st">"label"</span> <span class="ot">toName=</span><span class="st">"image"</span>&gt;</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">Label</span> <span class="ot">value=</span><span class="st">"Residential"</span> <span class="ot">category=</span><span class="st">"0"</span>/&gt;</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">Label</span> <span class="ot">value=</span><span class="st">"Commercial"</span> <span class="ot">category=</span><span class="st">"1"</span>/&gt;</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">Label</span> <span class="ot">value=</span><span class="st">"Apartment"</span> <span class="ot">category=</span><span class="st">"2"</span>/&gt;</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">Label</span> <span class="ot">value=</span><span class="st">"Church"</span> <span class="ot">category=</span><span class="st">"3"</span>/&gt;</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    &lt;<span class="kw">Label</span> <span class="ot">value=</span><span class="st">"Aux Building"</span> <span class="ot">category=</span><span class="st">"4"</span>/&gt;</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>  &lt;/<span class="kw">RectangleLabels</span>&gt;</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>&lt;/<span class="kw">View</span>&gt;</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th style="text-align: center;">Number</th>
+<th style="text-align: left;">Label</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;">0</td>
+<td style="text-align: left;">Residential</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">1</td>
+<td style="text-align: left;">Commercial</td>
+</tr>
+<tr class="odd">
+<td style="text-align: center;">2</td>
+<td style="text-align: left;">Apartment</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">3</td>
+<td style="text-align: left;">Church</td>
+</tr>
+<tr class="odd">
+<td style="text-align: center;">4</td>
+<td style="text-align: left;">Aux Building</td>
+</tr>
+</tbody>
+</table>
+<blockquote class="blockquote">
+<p><em>Aux Buildings</em> include, but are not limited to, the following: sheds.</p>
+</blockquote>
+</div>
+</div>
+</div>
+<blockquote class="blockquote">
+<p><strong>Important:</strong> Use the same order and number for labels every time. Each annotation will be defined by a number. Label Studio only saves the label’s name, and works out the number when you export. Without a <code>category</code>, it numbers the labels alphabetically, so adding a label later would renumber the others. Not keeping numbers and labels lined up across annotations will ruin the object detection model training.</p>
+</blockquote>
+<p>To add a label later, add it as the <strong>last</strong> <code>&lt;Label&gt;</code> line with the next number (e.g.&nbsp;<code>&lt;Label value="Shed" category="5"/&gt;</code>). Never change or reuse an existing number, and keep the lines in number order.</p>
+<ol start="5" type="1">
+<li><strong>Save Project.</strong> This will take you to the annotation list.</li>
 </ol>
 </section>
 <section id="annotating-images" class="level2">
@@ -213,12 +392,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="standards">Standards</h3>
 <ul>
 <li><p>Make sure the entire object is in the bounding box. There will be things that are not the object in each bounding box, but try to limit it.</p></li>
-<li><p>Annotate every instance of each object in the photo, even if it’s related to another house — such as a car in the neighboring house’s driveway, or a window on a neighboring house. When training the software, it doesn’t matter if everything relates to the subject.</p>
+<li><p>Annotate every instance of each object in the photo, even if it’s related to another house — such as a car in the neighboring house’s driveway, or a door on a neighboring house. When training the software, it doesn’t matter if everything relates to the subject.</p>
 <ul>
 <li>This also applies to objects that are only partly in a picture. The object detection model will still detect these.</li>
 </ul></li>
-<li><p>Again, labels must always have the same numbers associated with them, such as 1 for car.</p></li>
+<li><p>Again, labels must always have the same numbers associated with them, such as 0 for Car.</p></li>
 </ul>
+</section>
+<section id="exporting" class="level3">
+<h3 class="anchored" data-anchor-id="exporting">Exporting</h3>
 </section>
 </section>
 

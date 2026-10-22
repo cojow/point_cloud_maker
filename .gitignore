@@ -3,6 +3,7 @@ data/*
 py/__pycache__
 README_files
 .claude
+housing_data
 housing_data/TaxParcel_July21_2026_all.csv
 housing_data/TaxParcel_July21_2026_all.csv.xml
 documentation/Using_Label_Studio_files

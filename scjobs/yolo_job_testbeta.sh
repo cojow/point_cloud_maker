@@ -14,8 +14,9 @@
 source ~/miniconda3/bin/activate yolomodel_v_1
 
 # Run the script
-# Note: Ensure train.py has device=[0,1] inside it
-python /home/willicon/training/ultralytics_model/train.py
+# Note: Ensure training_args in py/yolo_training/config.yaml has device: [0, 1] (or [-1, -1]) for the 2 GPUs requested above
+# Training data goes in /home/willicon/point_cloud/data/yolo/dataset (see py/yolo_training/yolo_paths.py)
+python /home/willicon/point_cloud/py/yolo_training/train.py
 
 
 
@@ -36,6 +37,6 @@ python /home/willicon/training/ultralytics_model/train.py
 #SBATCH --mail-type=END
 
 source ~/miniconda3/bin/activate yolomodel_v_1
-python /home/willicon/training/ultralytics_model/train.py
+python /home/willicon/point_cloud/py/yolo_training/train.py
 '''
 

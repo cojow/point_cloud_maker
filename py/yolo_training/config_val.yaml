@@ -1,10 +1,27 @@
-train: /Users/willicon/Desktop/provo_oakhills_wasatch_seed15/images
-val: /Users/willicon/Desktop/provo_oakhills_wasatch_seed15/images
+# Everything validation.py needs lives in this file - edit it, then run validation.py.
+
+# The training run whose weights/best.pt is validated.
+model:
+  run: train2_provo          # folder in data/yolo/runs/
+
+# The images and labels to validate on.
+image_set: provo_oakhills_wasatch_seed15   # folder in data/yolo/sets/ holding images/ and labels/
+
+# Passed straight to model.val(), so any Ultralytics val argument can be added
+# here (imgsz, batch, conf, ...). See
+# https://docs.ultralytics.com/modes/val/#arguments-for-yolo-model-validation
+validation_args:
+  device: mps                # optimized to run on a mac processor
+
+# --- Dataset ---
+# "path:" (the folder holding images/ and labels/) is filled in by validation.py - it is data/yolo/sets/<image_set>.
+train: images
+val: images
 
 # Classes
 names:
-  0: Apartment
-  1: Church
-  2: Commercial
-  3: Residential
-  4: School
+  0: Car
+  1: Bike
+  2: Door
+  3: Garage
+  4: Aux Vehicle

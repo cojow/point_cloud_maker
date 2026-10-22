@@ -142,9 +142,10 @@ load Apptainer — this stage never touches the container).
 [`py/yolo_training/`](py/yolo_training), [`py/random_forest_model/`](py/random_forest_model), and
 [`scjobs/yolo_job_testbeta.sh`](scjobs/yolo_job_testbeta.sh) are a separate, experimental object-detection
 effort (likely meant to consume the cropped building photos this pipeline produces) — neither
-`auto_reconstruct.py` nor `building_extractor.py` depends on them, and the job script itself points at a
-training script outside this repo. `ultralytics` and `joblib` in `requirements.txt` are commented out and only
-needed if you're working with those.
+`auto_reconstruct.py` nor `building_extractor.py` depends on them. `py/yolo_training/` trains YOLO26 and keeps
+everything under `data/yolo/` (training data in `dataset/`, validation/prediction images in `sets/`, outputs in
+`runs/` - see [`yolo_paths.py`](py/yolo_training/yolo_paths.py)), so it runs wherever the repo is cloned.
+`ultralytics` and `joblib` in `requirements.txt` are commented out and only needed if you're working with those.
 
 ## Known issues / in progress
 
