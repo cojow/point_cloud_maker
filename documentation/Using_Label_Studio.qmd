@@ -233,7 +233,6 @@ To add more images later, put them in the Box folder and sync the storage again 
    Never change or reuse an existing number, and keep the lines in number order.
 
    
-
 5. **Save Project.** This will take you to the annotation list.
 
 ## Annotating Images
@@ -252,3 +251,7 @@ To add more images later, put them in the Box folder and sync the storage again 
 
 ### Exporting
 
+1. In project view, press **Export** in the top right corner.
+2. Scroll down and press **Yolo with Images**, then press export. 
+3. Rename the downloaded ZIP file to match the photo folder, with the prefix changed to "annotated".
+4. Upload the ZIP file to the `Annotated Photos` Box folder.
