@@ -22,14 +22,19 @@ I use conda, which can be downloaded by following the links below. The next step
 
 But any environment manager will work. 
 
-### Create and Activate Environment 
+### Create an Environment
 
 In your terminal, run the following command:
+(The terminal app on Mac or Windows)
 
 ```bash
 conda create -n label_studio python=3.11
 ```
+You only need to do this once.
+
 > **Note:** Python 3.11 is confirmed to work with Label Studio. 
+
+### Activate Environment 
 
 Run the following to activate the environment. You'll see the environment name in () on the left in the terminal.
 
@@ -44,7 +49,8 @@ Make sure you have installed pip, so that you can install Label Studio.
 ```bash
 conda install pip
 ```
-Now run:
+
+Now run: 
 
 ```bash
 pip install label-studio
@@ -59,18 +65,9 @@ See below for how to run the program.
 
 ## Getting Started
 
-Set up an account when you first run the program.
-
-
-
-> **Important:** Don't forget this login or you won't be able to access your projects.
-
-
-> NEED TO DO
-> Set up how to link the Box folder to label studio session so that images don't need to be downloaded.
+> NEED TO DO (Ignore if you are not Connor):
 > Add a code that will pre-shrink the images? Maybe? 
 > Figure out how best to organize the training image datasets. Do I download the images from Label Studio? Or just the labels?
-
 
 
 ## Using the Box Folder
@@ -137,31 +134,7 @@ label-studio
 
 > **Note:** While it is running, Label Studio can read anything under the document root, so don't point it at a bigger folder than you need.
 
-### Connect the folder to a project {#connect_to_box}
 
-Do this after step 5 of [Beginning a New Project](#beginning-a-new-project), once the project is saved with its
-labeling code in place.
-
-1. Open the project, then go to **Settings** → **Cloud Storage** → **Add Source Storage**.
-2. Choose **Local Files** and click **Next**.
-3. **Storage Title:** the name of the image folder.
-4. **Absolute local path:** it starts out filled in with the document root. Add the rest of the path to the
-   image folder, for example:
-   - **Mac:** `/Users/<you>/Library/CloudStorage/Box-Box/<folder with the images>`
-   - **Windows:** `C:\\Users\\<you>\\Box\\<folder with the images>`
-
-   Click **Test connection**.
-5. **Import Method:** choose **Files**, which makes one task per image.
-6. **File Name Filter:** `.*\.(jpg|JPG|jpeg|JPEG|png)`
-7. Turn on **Scan all sub-folders** if the images are spread over several folders.
-8. Click **Load preview** to check the images being read, then **Save & Sync**.
-
-One task per image should now show up in the **Data Manager**. 
-To add more images later, put them in the Box folder and sync the storage again from **Settings** → **Cloud Storage**.
-
-> **Note:** Don't rename, move, or delete the images in Box after importing them, because each task points at the image's path.
->
-> If images show up blank, check that Box has finished downloading the folder, that the path is inside the document root, and that Label Studio was started with the commands above.
 
 ## Beginning a New Project
 
@@ -169,8 +142,8 @@ To add more images later, put them in the Box folder and sync the storage again 
 2. **Add a project name**
    - Name it after the image folder name.
 3. **Data Import**
-   - If the images are in the Box folder, skip this step. You connect the folder after the project is saved (see [how to connect to the Box folder](#connect_to_box)).
-   - Otherwise, drag and drop all the images into it.
+   - Since we will be pulling the images straight from Box, you can skip this tab (see [how to connect to the Box folder](#connect_to_box)).
+   - If you are not using Box, drag and drop all the images into it.
 4. **Labeling setup**
    - Select **"Object Detection with Bounding Boxes"**.
    - Switch the editor on the right from **Visual** to **Code**, delete everything in it, and paste in the following, depending on what you are annotating:
@@ -232,8 +205,32 @@ To add more images later, put them in the Box folder and sync the storage again 
    To add a label later, add it as the **last** `<Label>` line with the next number (e.g. `<Label value="Shed" category="5"/>`). 
    Never change or reuse an existing number, and keep the lines in number order.
 
-   
 5. **Save Project.** This will take you to the annotation list.
+
+### Connect the folder to a project {#connect_to_box}
+
+Do this after step 5 of [Beginning a New Project](#beginning-a-new-project), once the project is saved with its labeling code in place.
+
+1. Open the project, then go to **Settings** → **Cloud Storage** → **Add Source Storage**.
+2. Choose **Local Files** and click **Next**.
+3. **Storage Title:** the name of the image folder.
+4. **Absolute local path:** it starts out filled in with the document root. Add the rest of the path to the
+   image folder, for example:
+   - **Mac:** `/Users/<you>/Library/CloudStorage/Box-Box/<folder with the images>`
+   - **Windows:** `C:\\Users\\<you>\\Box\\<folder with the images>`
+
+   Click **Test connection**.
+5. **Import Method:** choose **Files**, which makes one task per image.
+6. **File Name Filter:** `.*\.(jpg|JPG|jpeg|JPEG|png)`
+7. Turn on **Scan all sub-folders** if the images are spread over several folders.
+8. Click **Load preview** to check the images being read, then **Save & Sync**.
+
+One task per image should now show up in the **Data Manager**. 
+To add more images later, put them in the Box folder and sync the storage again from **Settings** → **Cloud Storage**.
+
+> **Note:** Don't rename, move, or delete the images in Box after importing them, because each task points at the image's path.
+>
+> If images show up blank, check that Box has finished downloading the folder, that the path is inside the document root, and that Label Studio was started with the commands above.
 
 ## Annotating Images
 
